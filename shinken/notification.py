@@ -65,7 +65,6 @@ class Notification(Action):
         'notif_nb':            IntegerProp(default=0),
         'status':              StringProp(default='scheduled'),
         't_to_go':             IntegerProp(default=0),
-        'is_a':                StringProp(default=''),
         'command':             StringProp(default=''),
         'sched_id':            IntegerProp(default=0),
         'timeout':             IntegerProp(default=10),
@@ -74,7 +73,7 @@ class Notification(Action):
         'worker':              StringProp(default='none'),
         'reactionner_tag':     StringProp(default='None'),
         'creation_time':       IntegerProp(default=0),
-        # Keep a lsit of currently active escalations
+        # Keep a list of currently active escalations
         'already_start_escalations':  StringProp(default=set()),
 
     }
@@ -82,7 +81,7 @@ class Notification(Action):
     macros = {
         'NOTIFICATIONTYPE':         'type',
         'NOTIFICATIONRECIPIENTS':   'recipients',
-        'NOTIFICATIONISESCALATED':  'escaladed',
+        'NOTIFICATIONISESCALATED':  'escalated',
         'NOTIFICATIONAUTHOR':       'author',
         'NOTIFICATIONAUTHORNAME':   'author_name',
         'NOTIFICATIONAUTHORALIAS':  'author_alias',
@@ -106,7 +105,6 @@ class Notification(Action):
         if id is None:  # id != None is for copy call only
             self.id = Action.id
             Action.id += 1
-
         self._in_timeout = False
         self.timeout = timeout
         self.status = status
@@ -181,7 +179,7 @@ class Notification(Action):
 
 
     # Fill data with info of item by looking at brok_type
-    # in props of properties or running_propterties
+    # in props of properties or running_properties
     def fill_data_brok_from(self, data, brok_type):
         cls = self.__class__
         # Now config properties
@@ -209,7 +207,7 @@ class Notification(Action):
 
         return res
 
-    # Inverted funtion of getstate
+    # Inverted function of getstate
     def __setstate__(self, state):
         cls = self.__class__
         self.id = state['id']

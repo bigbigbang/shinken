@@ -155,7 +155,7 @@ class Helper(object):
         else:  # past :)
             return ' '.join(duration) + ' ago'
 
-    # Need to create a X level higer and lower to the element
+    # Need to create a X level higher and lower to the element
     def create_json_dep_graph(self, elt, levels=3):
         t0 = time.time()
         # First we need ALL elements
@@ -244,7 +244,7 @@ class Helper(object):
         return d
 
     # Return all linked elements of this elt, and 2 level
-    # higer and lower :)
+    # higher and lower :)
     def get_all_linked_elts(self, elt, levels=3):
         if levels == 0:
             return set()
@@ -300,6 +300,7 @@ class Helper(object):
         else:
             return """<input type="checkbox" %s />\n""" % id_s
 
+
     def print_business_rules_mobile(self, tree, level=0, source_problems=[]):
         safe_print("Should print tree", tree)
         safe_print('with source_problems', source_problems)
@@ -337,8 +338,9 @@ class Helper(object):
                 sub_s = self.print_business_rules_mobile(n, level=level+1, source_problems=source_problems)
                 s += '<li class="%s">%s</li>' % (self.get_small_icon_state(sub_node), sub_s)
             s += "</ul>"
-        safe_print("Returing s:", s)
+        #safe_print("Returning s:", s)
         return s
+
 
     def print_business_rules(self, tree, level=0, source_problems=[]):
         safe_print("Should print tree", tree)
@@ -382,7 +384,7 @@ class Helper(object):
                 sub_s = self.print_business_rules(n, level=level+1, source_problems=source_problems)
                 s += '<li class="%s">%s</li>' % (self.get_small_icon_state(sub_node), sub_s)
             s += "</ul>"
-        safe_print("Returing s:", s)
+        #safe_print("Returning s:", s)
         return s
 
     # Mockup helper
@@ -423,7 +425,7 @@ class Helper(object):
                 sub_s = self.print_business_rules(n, level=level+1)
                 s += '<li class="%s">%s</li>' % (self.get_small_icon_state(sub_node), sub_s)
             s += "</ul>"
-        safe_print("Returing s:", s)
+        #safe_print("Returning s:", s)
         return s
 
     # Get the small state for host/service icons
@@ -467,7 +469,7 @@ class Helper(object):
         res = "%s %s" % (txts.get(obj.business_impact, 'Unknown'), stars)
         return res
 
-    # We will outpout as a ul/li list the impacts of this
+    # We will output as a ul/li list the impacts of this
     def got_impacts_list_as_li(self, obj):
         impacts = obj.impacts
         r = '<ul>\n'
@@ -513,7 +515,7 @@ class Helper(object):
     def get_link_dest(self, obj):
         return "/%s/%s" % (obj.__class__.my_type, obj.get_full_name())
 
-    # For an host, give it's own link, for a servies, give the link of its host
+    # For an host, give it's own link, for a services, give the link of its host
     def get_host_link(self, obj):
         if obj.__class__.my_type == 'service':
             return self.get_link(obj.host)
@@ -610,7 +612,10 @@ class Helper(object):
     # We want the html id of an hostor a service. It's basically
     # the full_name with / changed as -- (because in html, / is not valid :) )
     def get_html_id(self, elt):
-        return elt.get_full_name().replace('/', '--').replace(' ', '_').replace('.', '_').replace(':', '_')
+        return self.strip_html_id(elt.get_full_name())
+
+    def strip_html_id(self, s):
+        return s.replace('/', '--').replace(' ', '_').replace('.', '_').replace(':', '_')
 
     # URI with spaces are BAD, must change them with %20
     def get_uri_name(self, elt):
@@ -619,5 +624,129 @@ class Helper(object):
     # say if this user can launch an action or not
     def can_action(self, user):
         return user.is_admin or user.can_submit_commands
+
+
+    def get_aggregation_paths(self, p):
+        p = p.strip()
+        if p and not p.startswith('/'):
+            p = '/'+p
+        if p.endswith('/'):
+            p = p[-1]
+        return [s.strip() for s in p.split('/')]
+
+
+    def compute_aggregation_tree_worse_state(self, tree):
+        # First ask to our sons to compute their states
+        for s in tree['sons']:
+            self.compute_aggregation_tree_worse_state(s)
+        # Ok now we can look at worse between our services
+        # and our sons
+        # get a list of all states
+        states = [s['state'] for s in tree['sons']]
+        for s in tree['services']:
+            states.append(s.state.lower())
+        # ok now look at what is worse here
+        order = ['critical', 'warning', 'unknown', 'ok', 'pending']
+        for o in order:
+            if o in states:
+                tree['state'] = o
+                return
+        # Should be never call or we got a major problem...
+        tree['state'] = 'unknown'
+        
+
+    def assume_and_get_path_in_tree(self, tree, paths):
+        print "Tree on start of", paths, tree
+        current_full_path = ''
+        for p in paths:
+            # Don't care about void path, like for root
+            if not p:
+                continue
+            current_full_path += '/'+p
+            founded = False
+            for s in tree['sons']:
+                # Maybe we find the good son, if so go on this level
+                if p == s['path']:
+                    tree = s
+                    founded = True
+                    break
+            # Did we find our son? If no, create it and jump into it
+            if not founded:
+                s = {'path' : p, 'sons' : [], 'services':[], 'state':'unknown', 'full_path':current_full_path}
+                tree['sons'].append(s)
+                tree = s
+        return tree
+                
+
+    
+
+
+    def get_host_service_aggregation_tree(self, h):
+        tree = {'path' : '/', 'sons' : [], 'services':[], 'state':'unknown', 'full_path':'/'}
+        for s in h.services:
+            p = s.aggregation
+            paths = self.get_aggregation_paths(p)
+            print "Service", s.get_name(), "with path", paths
+            leaf = self.assume_and_get_path_in_tree(tree, paths)
+            leaf['services'].append(s)
+        print "Whole tree"
+        from pprint import pprint
+        pprint(tree)
+        self.compute_aggregation_tree_worse_state(tree)
+        print "After worse state"
+        pprint(tree)
+        
+        return tree
+
+
+    def print_aggregation_tree(self, tree, html_id):
+        path = tree['path']
+        full_path = tree['full_path']
+        sons = tree['sons']
+        services = tree['services']
+        state = tree['state']
+        _id = '%s-%s' % (html_id, self.strip_html_id(full_path))
+        s = ''
+
+        display = 'block'
+        img = 'reduce.png'
+
+        if path != '/':
+            # If our state is OK, hide our sons
+            if state == 'ok':
+                display = 'none'
+                img = 'expand.png'
+
+            s += """<span class="alert-small alert-%s"> %s </span>""" % (state, path)
+            s += """<a id="togglelink-aggregation-%s" href="javascript:toggleAggregationElt('%s')"><img id="aggregation-toggle-img-%s" src="/static/images/%s" alt="toggle"> </a> \n""" % (_id, _id, _id, img)
+
+        s += """<ul id="aggregation-node-%s" style="display: %s; ">""" % (_id, display)
+        # If we got no parents, no need to print the expand icon
+        if len(sons) > 0:
+            for son in sons:
+                sub_s = self.print_aggregation_tree(son, html_id)
+                s += '<li class="no_list_style">%s</li>' % sub_s
+
+
+        s += '<li class="no_list_style">'
+        if path == '/' and len(services) > 0:
+            s += """<span class="alert-small"> Others </span>"""
+        s += '<ul style="margin-left: 0px;">'
+        # Sort our services before print them
+        services.sort(hst_srv_sort)
+        for svc in services:
+            s += '<li class="%s">' % svc.state.lower()
+            s += """<span class='alert-small alert-%s' style="">%s</span> for <span style="">%s since %s</span>""" % (svc.state.lower(), svc.state, self.get_link(svc, short=True), self.print_duration(svc.last_state_change, just_duration=True, x_elts=2))
+            for i in range(0, svc.business_impact-2):
+                s += '<img alt="icon state" src="/static/images/star.png">'
+            s += '</li>'
+        s += "</ul></li>"
+
+                
+        s += "</ul>"
+        #safe_print("Returning s:", s)
+        return s
+
+    
 
 helper = Helper()

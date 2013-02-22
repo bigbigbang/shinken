@@ -101,7 +101,7 @@ class AD_Webui(BaseModule):
 #        self.connect()
 
     def connect(self):
-        logger.debug("[Active Directory UI] Trying to initalize the AD/Ldap connection")
+        logger.debug("[Active Directory UI] Trying to initialize the AD/Ldap connection")
         self.con = ldap.initialize(self.ldap_uri)
         self.con.set_option(ldap.OPT_REFERRALS, 0)
 
@@ -214,7 +214,7 @@ class AD_Webui(BaseModule):
         c = self.app.datamgr.get_contact(user)
 
         if not c:
-            logger.warning("[Active Directory UI] AD/Ldap: invalid user %s (not founded)" % user)
+            logger.warning("[Active Directory UI] AD/Ldap: invalid user %s (not found)" % user)
             return False
 
         # first we need to find the principalname of this entry
