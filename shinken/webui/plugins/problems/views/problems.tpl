@@ -130,7 +130,6 @@ $('.form_in_dropdown').on('click', function (e) {
 <!-- <div class="span12"> -->
 
 <div class="row-fluid">
-
   <div class="span6">
     <a id='select_all_btn' style="display:inline;" href="javascript:select_all_problems()" class="btn pull-left"><i class="icon-check"></i> Select all</a>
     <a id='unselect_all_btn' style="display:inline;" href="javascript:unselect_all_problems()" class="btn pull-left"><i class="icon-minus"></i> Unselect all</a>
@@ -142,10 +141,13 @@ $('.form_in_dropdown').on('click', function (e) {
       <span class="caret"></span>
     </button>
     <ul class="dropdown-menu">
-      <li><a href="#FilterModal" role="button" data-toggle="modal">Filter</a></li>
+      <li><a href="#FilterModal" role="button" data-toggle="modal">Add Filter</a></li>
        <li><a href="#myModal" role="button" data-toggle="modal">View Filter</a></li>
     </ul>
   </div>
+</div>
+
+<div class="row-fluid">
   <div class="span3">
     %include pagination_element navi=navi, app=app, page=page, div_class="pagination-right no-margin"
   </div>
@@ -328,7 +330,7 @@ $('.form_in_dropdown').on('click', function (e) {
   <div id="myModal" class="modal hide fade" tabindex="-1" role="dialog" aria-labelledby="myModalLabel" aria-hidden="true">
     <div class="modal-header">
       <button type="button" class="close" data-dismiss="modal" aria-hidden="true">×</button>
-      <h3 id="myModalLabel">Modal header</h3>
+      <h3 id="myModalLabel">Active Filter</h3>
     </div>
     <div class="modal-body">
     
