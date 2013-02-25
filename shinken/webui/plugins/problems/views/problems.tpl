@@ -131,18 +131,18 @@ $('.form_in_dropdown').on('click', function (e) {
 
 <div class="row-fluid">
   <div class="span6">
-    <a id='select_all_btn' style="display:inline;" href="javascript:select_all_problems()" class="btn pull-left"><i class="icon-check"></i> Select all</a>
-    <a id='unselect_all_btn' style="display:inline;" href="javascript:unselect_all_problems()" class="btn pull-left"><i class="icon-minus"></i> Unselect all</a>
+    <a id="select_all_btn" style="display:inline;" href="javascript:select_all_problems()" class="btn btn-small pull-left"><i class="icon-check"></i> Select all</a>
+    <a id="unselect_all_btn" style="display:inline;" href="javascript:unselect_all_problems()" class="btn btn-small pull-left"><i class="icon-minus"></i> Unselect all</a>
   </div>
   
-  <div class="btn-group span1">
-    <button class="btn"><i class="icon-cog"></i> Actions</button>
-    <button class="btn dropdown-toggle" data-toggle="dropdown">
+  <div class="btn-group pull-right">
+    <button class="btn btn-small"><i class="icon-cog"></i> Actions</button>
+    <button class="btn btn-small dropdown-toggle" data-toggle="dropdown">
       <span class="caret"></span>
     </button>
     <ul class="dropdown-menu">
       <li><a href="#FilterModal" role="button" data-toggle="modal">Add Filter</a></li>
-       <li><a href="#myModal" role="button" data-toggle="modal">View Filter</a></li>
+      <li><a href="#myModal" role="button" data-toggle="modal">View Filter</a></li>
     </ul>
   </div>
 </div>
