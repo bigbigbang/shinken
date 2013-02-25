@@ -31,60 +31,60 @@ var toolbar_hide = false;
 %end
 
 <script type="text/javascript">
-function submitform() {
-  document.forms["search_form"].submit();
-}
+  function submitform() {
+    document.forms["search_form"].submit();
+  }
 
-/* Catch the key ENTER and launch the form
-Will be link in the password field
-*/
-function submitenter(myfield,e) {
-  var keycode;
-  if (window.event) keycode = window.event.keyCode;
-  else if (e) keycode = e.which;
-  else return true;
+  /* Catch the key ENTER and launch the form
+  Will be link in the password field
+  */
+  function submitenter(myfield,e) {
+    var keycode;
+    if (window.event) keycode = window.event.keyCode;
+    else if (e) keycode = e.which;
+    else return true;
 
 
-  if (keycode == 13){
-    submitform();
-    return false;
-  }else
-  return true;
-}
+    if (keycode == 13){
+      submitform();
+      return false;
+    }else
+    return true;
+  }
 
-$('.typeahead').typeahead({
-// note that "value" is the default setting for the property option
-/*source: [{value: 'Charlie'}, {value: 'Gudbergur'}, {value: 'Charlie2'}],*/
-source: function (typeahead, query) {
-  $.ajax({url: "/lookup/"+query,
-    success: function (data){
-      typeahead.process(data)}
-    });
-},
-onselect: function(obj) {
-  $("ul.typeahead.dropdown-menu").find('li.active').data(obj);
-}
-});
+  $('.typeahead').typeahead({
+  // note that "value" is the default setting for the property option
+  /*source: [{value: 'Charlie'}, {value: 'Gudbergur'}, {value: 'Charlie2'}],*/
+  source: function (typeahead, query) {
+    $.ajax({url: "/lookup/"+query,
+      success: function (data){
+        typeahead.process(data)}
+      });
+  },
+  onselect: function(obj) {
+    $("ul.typeahead.dropdown-menu").find('li.active').data(obj);
+  }
+  });
 
-var active_filters = [];
+  var active_filters = [];
 
-// List of the bookmarks
-var bookmarks = [];
-var bookmarksro = [];
+  // List of the bookmarks
+  var bookmarks = [];
+  var bookmarksro = [];
 
-// Ok not the best way to restrict the admin functions to admin, but I can't find another way around.
-%if user.is_admin:
-var advfct=1;
-%else:
-var advfct=0;
-%end
+  // Ok not the best way to restrict the admin functions to admin, but I can't find another way around.
+  %if user.is_admin:
+  var advfct=1;
+  %else:
+  var advfct=0;
+  %end
 
-%for b in bookmarks:
-declare_bookmark("{{!b['name']}}","{{!b['uri']}}");
-%end
-%for b in bookmarksro:
-declare_bookmarksro("{{!b['name']}}","{{!b['uri']}}");
-%end
+  %for b in bookmarks:
+  declare_bookmark("{{!b['name']}}","{{!b['uri']}}");
+  %end
+  %for b in bookmarksro:
+  declare_bookmarksro("{{!b['name']}}","{{!b['uri']}}");
+  %end
 </script>
 
 %# "We set the actions div that will be show/hide if we select elements"
@@ -105,10 +105,10 @@ declare_bookmarksro("{{!b['name']}}","{{!b['uri']}}");
 </ul>
 
 <script type="text/javascript">
-// We will create here our new filter options
-// This should be outside the "pageslide" div. I don't know why
-new_filters = [];
-current_filters = [];
+  // We will create here our new filter options
+  // This should be outside the "pageslide" div. I don't know why
+  new_filters = [];
+  current_filters = [];
 </script>
 
 
