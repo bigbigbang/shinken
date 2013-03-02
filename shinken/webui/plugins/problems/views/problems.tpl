@@ -269,7 +269,7 @@ $('.form_in_dropdown').on('click', function (e) {
               %else:
               <td class="srvdescription cut_long"> &nbsp; </td>
               %end
-              <td class=''> <button class="txt_status state_{{pb.state.lower()}}">{{pb.state}} </button></td>
+              <td class=''> <button class="btn txt_status state_{{pb.state.lower()}}">{{pb.state}} </button></td>
 
               <td class='duration' rel="tooltip" data-original-title='{{helper.print_date(pb.last_state_change)}}'>{{helper.print_duration(pb.last_state_change, just_duration=True, x_elts=2)}}</td>
               %# "We put a title (so a tip) on the output onlly if need"
