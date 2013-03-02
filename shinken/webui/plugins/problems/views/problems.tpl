@@ -129,7 +129,7 @@ $('.form_in_dropdown').on('click', function (e) {
 
 <!-- <div class="span12"> -->
 
-<div class="row-fluid">
+<!-- <div class="row-fluid">
   <div class="span6">
     <a id="select_all_btn" style="display:inline;" href="javascript:select_all_problems()" class="btn btn-small pull-left"><i class="icon-check"></i> Select all</a>
     <a id="unselect_all_btn" style="display:inline;" href="javascript:unselect_all_problems()" class="btn btn-small pull-left"><i class="icon-minus"></i> Unselect all</a>
@@ -153,11 +153,233 @@ $('.form_in_dropdown').on('click', function (e) {
   </div>
 </div>
 
+<div class="row-fluid">
+  <div class="span12">
+    <table class="table table-condensed table-hover">
+      <thead>
+        <tr>
+          <th> </th>
+          <th> </th>
+          <th> </th>
+          <th> </th>
+          <th> </th>
+          <th> </th>
+          <th> </th>
+          <th> </th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td><div onclick="add_remove_elements('localhost')" onmouseover="hovering_selection('localhost')" style="cursor:pointer;" class="tick pull-left"><img alt="" src="/static/images/tick.png" class="img_tick" id="selector-localhost" style="display: none;"></div></td>
+          <td><b>localhost</b></td>
+          <td>description ...</td>
+          <td><button data-original-title="since 1h 4m" class="btn span12 alert-small alert-down quickinforight">DOWN</button></td>
+          <td>52m 2s</td>
+          <td> [Errno 2] No such file or directory </td>
+          <td>perfometer</td>
+          <td><i class="icon-magic"></i></td>
+        </tr>
+        <tr>
+          <td><div onclick="add_remove_elements('localhost')" onmouseover="hovering_selection('localhost')" style="cursor:pointer;" class="tick pull-left"><img alt="" src="/static/images/tick.png" class="img_tick" id="selector-localhost" style="display: none;"></div></td>
+          <td><b>localhost</b></td>
+          <td>description ...</td>
+          <td><button data-original-title="since 1h 4m" class="btn span12 alert-small alert-down quickinforight">DOWN</button></td>
+          <td>52m 2s</td>
+          <td> [Errno 2] No such file or directory </td>
+          <td>perfometer</td>
+          <td><i class="icon-magic"></i></td>
+        </tr>
+        <tr>
+          <td><div onclick="add_remove_elements('localhost')" onmouseover="hovering_selection('localhost')" style="cursor:pointer;" class="tick pull-left"><img alt="" src="/static/images/tick.png" class="img_tick" id="selector-localhost" style="display: none;"></div></td>
+          <td><b>localhost</b></td>
+          <td>description ...</td>
+          <td><button quickinfo="0.00% state change" class="btn alert-small trim-No span12">Up</button></td>
+          <td>52m 2s</td>
+          <td> [Errno 2] No such file or directory </td>
+          <td>perfometer</td>
+          <td><i class="icon-magic"></i></td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+</div> -->
+
+<!-- View Start -->
+
+<div class="row-fluid">
+    %# " We will print Business impact level of course"
+    %imp_level = 10
+
+    %# " We remember the last hname so see if we print or not the host for a 2nd service"
+    %last_hname = ''
+
+    %# " We try to make only importants things shown on same output "
+    %last_output = ''
+    %nb_same_output = 0
+    %if app.datamgr.get_nb_problems() > 0 and page == 'problems' and app.play_sound:
+    <EMBED src="/static/sound/alert.wav" autostart=true loop=false volume=100 hidden=true>
+      %end
+
+      %for pb in pbs:
+
+      %if pb.business_impact != imp_level:
+      <h3> Business impact: {{!helper.get_business_impact_text(pb)}} </h3>
+      %# "We reset the last_hname so we won't overlap this feature across tables"
+      %last_hname = ''
+      %last_output = ''
+      %nb_same_output = 0
+      %end
+      %imp_level = pb.business_impact
+
+      %# " We check for the same output and the same host. If we got more than 3 of same, make them opacity effect"
+      %if pb.output == last_output and pb.host_name == last_hname:
+      %nb_same_output += 1
+      %else:
+      %nb_same_output = 0
+      %end
+      %last_output = pb.output
+
+      %if nb_same_output > 2 and page == 'problems':
+      <div class='hide hide_for_{{last_hname}}'>
+        %else:
+        <div class="span12">
+          %end
+          <!-- <div class="tableCriticity pull-left"> -->
+          <table class="table table-condensed table-hover">
+            <tr>
+            <td class='tick ' style="cursor:pointer;" onmouseover="hovering_selection('{{helper.get_html_id(pb)}}')" onclick="add_remove_elements('{{helper.get_html_id(pb)}}')"><img id='selector-{{helper.get_html_id(pb)}}' class='img_tick' src='/static/images/tick.png' alt=""/></td>
+            <td class='img_status pull-left'>
+              <div class="aroundpulse">
+                %# " We put a 'pulse' around the elements if it's an important one "
+                %if pb.business_impact > 2 and pb.state_id in [1, 2, 3]:
+                <span class="pulse"></span>
+                %end
+                <img src="{{helper.get_icon_state(pb)}}" alt="" />
+              </div>
+            </td>
+            %if pb.host_name == last_hname:
+            <td class="hostname cut_long"> &nbsp;  </td>
+            %else:
+            <td class="hostname cut_long"> {{!helper.get_host_link(pb)}}</td>
+            %end
+            %last_hname = pb.host_name
+
+              %if pb.__class__.my_type == 'service':
+              <td class="srvdescription cut_long">{{!helper.get_link(pb, short=True)}}</td>
+              %else:
+              <td class="srvdescription cut_long"> &nbsp; </td>
+              %end
+              <td class=''> <button class="txt_status state_{{pb.state.lower()}}">{{pb.state}} </button></td>
+
+              <td class='duration' rel="tooltip" data-original-title='{{helper.print_date(pb.last_state_change)}}'>{{helper.print_duration(pb.last_state_change, just_duration=True, x_elts=2)}}</td>
+              %# "We put a title (so a tip) on the output onlly if need"
+              %if len(pb.output) > 100:
+              %if app.allow_html_output:
+              <td class='output' rel="tooltip" data-original-title="{{pb.output}}"> {{!helper.strip_html_output(pb.output[:app.max_output_length])}}</td>
+              %else:
+              <td class='output ' rel="tooltip" data-original-title="{{pb.output}}"> {{pb.output[:app.max_output_length]}}</td>
+              %end
+              %else:
+              %if app.allow_html_output:
+              <td class='output'> {{!helper.strip_html_output(pb.output)}}</td>
+              %else:
+              <td class='output'> {{pb.output}} </td>
+              %end
+              %end
+              %graphs = app.get_graph_uris(pb, now- 4*3600 , now)
+              %onmouse_code = ''
+              %if len(graphs) > 0:
+              %onmouse_code = 'onmouseover="display_hover_img(\'%s\',\'\');" onmouseout="hide_hover_img();" ' % graphs[0]['img_src']
+              %end
+              <td class="perfometer" {{!onmouse_code}}>
+                {{!helper.get_perfometer(pb)}} &nbsp;
+              </td>
+              <td class="no_border opacity_hover shortdesc expand" style="max-width:20px;" onclick="show_detail('{{helper.get_html_id(pb)}}')"><i class="icon-chevron-down" id='show-detail-{{helper.get_html_id(pb)}}'></i> <i class="icon-chevron-up chevron-up" id='hide-detail-{{helper.get_html_id(pb)}}'></i> </td>
+            <tr>
+            </table>
+          <!-- </div> -->
+
+            %if nb_same_output == 2 and page == 'problems':
+            <div class="tableCriticity opacity_hover">
+              <a rel=tooltip title='Expand the same service problems' href="javascript:show_hidden_problems('hide_for_{{last_hname}}');" id='btn-hide_for_{{last_hname}}' class='go-center'>
+                <i class="icon-arrow-down"></i>
+                <i class="icon-arrow-down"></i>
+                <i class="icon-arrow-down"></i>
+              </a>
+            </div>
+            %end
+          </div>
+        </div>
+
+        %# "This div is need so the element will came back in the center of the previous div"
+        <div class="clear"></div>
+        <div id="{{helper.get_html_id(pb)}}" data-raw-obj-name='{{pb.get_full_name()}}' class="detail row-fluid">
+          <table class="well tableCriticity table-bordered table-condensed span6">
+            <tr>
+              <td style="width:20px;"><b>Host</b></td>
+              %if pb.__class__.my_type == 'service':
+              <td class="tdCriticity" style="width:20px;"><b>Service</b></td>
+              %end
+              <td style="width:20px;"><b>Realm</b></td>
+              <td style="width:20px;"><b>Last check</b></td>
+              <td style="width:20px;"><b>Next check</b></td>
+              <td class="tdCriticity" style="width:20px;"><b>Actions</b></td>
+              <td class="tdCriticity" style="width:40px;">  <div style="float:right;">
+
+              </div>
+            </td>
+          </tr>
+          <tr>
+            <td class=" tdCriticity" style="width:20px;">{{pb.host_name}}</td>
+            %if pb.__class__.my_type == 'service':
+            <td  style="width:20px;">{{pb.service_description}}</td>
+            %end
+            <td class=" tdBorderLeft" style="width:20px;">{{pb.get_realm()}}</td>
+            <td  style="width:20px;">{{helper.print_duration(pb.last_chk, just_duration=True, x_elts=2)}} ago</td>
+            <td  style="width:20px;">in {{helper.print_duration(pb.next_chk, just_duration=True, x_elts=2)}}</td>
+
+            <td class="tdCriticity" style="width:20px;"></td>
+            <td class="tdCriticity" style="width:20px;"><div style="float:right;"> <a href="{{!helper.get_link_dest(pb)}}" class='btn'><i class="icon-search"></i> Details</a>
+            </div> </td>
+          </tr>
+        </table>
+
+
+        <div class='span8'>
+          %if len(pb.impacts) > 0:
+          <hr />
+          <h5>Impacts:</h5>
+          %end
+          %for i in helper.get_impacts_sorted(pb):
+          <div>
+            <p><img style="width: 16px; height: 16px;" src="{{helper.get_icon_state(i)}}" />
+              <span class="alert-small alert-{{i.state.lower()}}">{{i.state}}</span> for {{!helper.get_link(i)}}
+              %for j in range(0, i.business_impact-2):
+              <img src='/static/images/star.png' alt="">
+              %end
+            </p>
+          </div>
+          %end
+        </div>
+      </div>
+
+
+      %end
+    </div>
+
+    %include pagination_element navi=navi, app=app, page=page, div_class="pagination-right"
+
+  </div>
+</div>
+
+<!-- View Ende -->
+
+
 <div class='row-fluid'>
-
-
   <!-- Start of the Right panel, with all problems -->
   <div class="span12">
+
+    <!-- LaLa Start -->
     <div id="accordion" class="span12">
 
       %# " We will print Business impact level of course"
@@ -322,6 +544,7 @@ $('.form_in_dropdown').on('click', function (e) {
 
     </div>
   </div>
+  <!-- LaLa End -->
 
   %# """ This div is an image container and will move hover the perfometer with mouse hovering """
   <div id="img_hover"></div>
