@@ -291,9 +291,9 @@ $('.form_in_dropdown').on('click', function (e) {
               %if len(graphs) > 0:
               %onmouse_code = 'onmouseover="display_hover_img(\'%s\',\'\');" onmouseout="hide_hover_img();" ' % graphs[0]['img_src']
               %end
-              <td class="perfometer" {{!onmouse_code}}>
+<!--               <td class="perfometer" {{!onmouse_code}}>
                 {{!helper.get_perfometer(pb)}} &nbsp;
-              </td>
+              </td> -->
               <td class="no_border opacity_hover shortdesc expand" style="max-width:20px;" onclick="show_detail('{{helper.get_html_id(pb)}}')"><i class="icon-chevron-down" id='show-detail-{{helper.get_html_id(pb)}}'></i> <i class="icon-chevron-up chevron-up" id='hide-detail-{{helper.get_html_id(pb)}}'></i> </td>
             <tr>
             </table>
