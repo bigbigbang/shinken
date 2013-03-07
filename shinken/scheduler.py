@@ -105,7 +105,7 @@ class Scheduler:
             18: ('send_broks_to_modules', self.send_broks_to_modules, 1),
             19: ('get_objects_from_from_queues', self.get_objects_from_from_queues, 1),
             20: ('write_file_log', self.write_file_log, 20),
-            21: ('send_artimon_log', self.send_artimon_log, 5),
+            21: ('send_socket_log', self.send_socket_log, 5),
         }      
 
         # stats part
@@ -114,10 +114,12 @@ class Scheduler:
         self.nb_broks_send = 0
         self.nb_check_received = 0
         # local log
-        self.nb_checks_send_artimon_file = 0
-        self.nb_checks_send_artimon_socket = 0
-        self.nb_broks_send_artimon_file = 0
-        self.nb_broks_send_artimon_socket = 0
+        self.nb_checks_send_file = 0
+        self.nb_broks_send_file = 0
+        self.nb_checks_total_file = 0
+        self.nb_checks_send_socket = 0
+        self.nb_broks_send_socket = 0
+        self.nb_checks_total_socket = 0
         self.checkstemp = {}
         
         # Log init
@@ -815,7 +817,6 @@ class Scheduler:
                     nb_received = len(results)
                     self.nb_check_received += nb_received
                     logger.debug("Received %d passive results" % nb_received)
-                    self.nb_check_received_artimon += nb_received
                     for result in results:
                         result.set_type_passive()
                     self.waiting_results.extend(results)
@@ -852,7 +853,6 @@ class Scheduler:
                     results = con.get_returns(self.instance_id)
                     nb_received = len(results)
                     self.nb_check_received += nb_received
-                    self.nb_check_received_artimon += nb_received
                     logger.debug("Received %d passive results" % nb_received)
                     for result in results:
                         result.set_type_passive()
@@ -1454,17 +1454,23 @@ class Scheduler:
                         nb_inpoller +=1
                     if c.status == 'zombies' and c.poller_tag == p:
                         nb_zombies +=1
+                    if c.poller_tag == p:
+                        self.nb_checks_total_file += 1
+                logfile.write("%d %s Total check %s \n" % (now, p, self.nb_checks_total_file))        
                 logfile.write("%d %s nb_scheduled %s \n%d %s nb_inpoller %s \n%d %s nb_zombies %s \n" % (now, p, nb_scheduled, now, p, nb_inpoller, now, p, nb_zombies))
+                logfile.write("%d check_send  %s \n%d broks_send  %s \n" % (now, self.nb_checks_send_file, now, self.nb_broks_send_file))
+                self.nb_checks_total_file = 0
                 x = x+1
-            logfile.write("%d check_send  %s \n%d broks_send  %s \n" % (now, self.nb_checks_send_artimon_file, now, self.nb_broks_send_artimon_file))
-            self.nb_checks_send_artimon_file = 0
-            self.nb_broks_send_artimon_file = 0       
+            
+            self.nb_checks_send_file = 0
+            self.nb_broks_send_file = 0  
+                 
         except IOError, e:
             if e.errno != 32:
                 raise
         logfile.close()
                 
-    def send_artimon_log(self):
+    def send_socket_log(self):
         #init socket
         connexion_avec_serveur = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         connexion_avec_serveur.connect(('127.0.0.1', 1234))
@@ -1494,11 +1500,17 @@ class Scheduler:
                         nb_inpoller +=1
                     if c.status == 'zombies' and c.poller_tag == p:
                         nb_zombies +=1
+                    if c.poller_tag == p:
+                        self.nb_checks_total_socket +=1
+                connexion_avec_serveur.send("%d %s Total check %s \n" % (now, p, self.nb_checks_total_socket))       
                 connexion_avec_serveur.send("%d %s nb_scheduled %s \n%d %s nb_inpoller %s \n%d %s nb_zombies %s \n" % (now, p, nb_scheduled, now, p, nb_inpoller, now, p, nb_zombies))
+                connexion_avec_serveur.send("%d check_send  %s \n%d broks_send  %s \n" % (now, self.nb_checks_send_socket, now, self.nb_broks_send_socket))
+                self.nb_checks_total_socket = 0
                 x = x+1
-                connexion_avec_serveur.send("%d check_send  %s \n%d broks_send  %s \n" % (now, self.nb_checks_send_artimon_socket, now, self.nb_broks_send_artimon_socket))
-            self.nb_checks_send_artimon_socket = 0
-            self.nb_broks_send_artimon_socket = 0       
+                
+            self.nb_checks_send_socket = 0
+            self.nb_broks_send_socket = 0
+                   
         except IOError, e:
             if e.errno != 32:
                 raise
@@ -1591,12 +1603,6 @@ class Scheduler:
             nb_inpoller = len([c for c in self.checks.values() if c.status == 'inpoller'])
             nb_zombies = len([c for c in self.checks.values() if c.status == 'zombie'])
             nb_notifications = len(self.actions)
-            # stats artimon
-            self.nb_checks_total_artimon = (len(self.checks))
-            self.nb_scheduled_artimon = nb_scheduled
-            self.nb_inpoller_artimon = nb_inpoller
-            self.nb_zombies_artimon = nb_zombies
-            self.nb_notifications_artimon = nb_notifications
 
             logger.debug("Checks: total %s, scheduled %s, inpoller %s, zombies %s, notifications %s" %\
                 (len(self.checks), nb_scheduled, nb_inpoller, nb_zombies, nb_notifications))
@@ -1611,27 +1617,27 @@ class Scheduler:
             now = time.time()
             if self.nb_checks_send != 0:
                 logger.debug("Nb checks/notifications/event send: %s" % self.nb_checks_send)
-                if self.nb_checks_send_artimon_file != 0 :
+                if self.nb_checks_send_file != 0 :
                     b = self.nb_checks_send
-                    self.nb_checks_send_artimon_file = self.nb_checks_send_artimon_file + b
-                if self.nb_checks_send_artimon_socket != 0 :
+                    self.nb_checks_send_file = self.nb_checks_send_file + b
+                if self.nb_checks_send_socket != 0 :
                     b = self.nb_checks_send
-                    self.nb_checks_send_artimon_socket = self.nb_checks_send_artimon_socket + b
+                    self.nb_checks_send_socket = self.nb_checks_send_socket + b
                 else :    
-                    self.nb_checks_send_artimon_file = self.nb_checks_send
-                    self.nb_checks_send_artimon_socket = self.nb_checks_send                   
+                    self.nb_checks_send_file = self.nb_checks_send
+                    self.nb_checks_send_socket = self.nb_checks_send                   
             self.nb_checks_send = 0
             if self.nb_broks_send != 0:
                 logger.debug("Nb Broks send: %s" % self.nb_broks_send)
-                if self.nb_broks_send_artimon_file == 0 :
+                if self.nb_broks_send_file == 0 :
                     b = self.nb_broks_send
-                    self.nb_broks_send_artimon_file = self.nb_broks_send_artimon_file + b
-                if self.nb_broks_send_artimon_socket == 0 :
+                    self.nb_broks_send_file = self.nb_broks_send_file + b
+                if self.nb_broks_send_socket == 0 :
                     b = self.nb_broks_send
-                    self.nb_broks_send_artimon_socket = self.nb_broks_send_artimon_file + b    
+                    self.nb_broks_send_socket = self.nb_broks_send_file + b    
                 else :    
-                    self.nb_broks_send_artimon_file = self.nb_broks_send
-                    self.nb_broks_send_artimon_socket = self.nb_broks_send
+                    self.nb_broks_send_file = self.nb_broks_send
+                    self.nb_broks_send_socket = self.nb_broks_send
             self.nb_broks_send = 0
 
             time_elapsed = now - gogogo
