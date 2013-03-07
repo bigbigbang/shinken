@@ -64,7 +64,7 @@ class Scheduler:
         self.sched_daemon = scheduler_daemon
         # When set to false by us, we die and arbiter launch a new Scheduler
         self.must_run = True
-
+        
         self.waiting_results = []  # satellites returns us results
         # and to not wait for them, we put them here and
         # use them later
@@ -104,14 +104,22 @@ class Scheduler:
             17: ('check_for_expire_acknowledge', self.check_for_expire_acknowledge, 1),
             18: ('send_broks_to_modules', self.send_broks_to_modules, 1),
             19: ('get_objects_from_from_queues', self.get_objects_from_from_queues, 1),
-        }
+            20: ('write_file_log', self.write_file_log, 20),
+            21: ('send_artimon_log', self.send_artimon_log, 5),
+        }      
 
         # stats part
         self.nb_checks_send = 0
         self.nb_actions_send = 0
         self.nb_broks_send = 0
         self.nb_check_received = 0
-
+        # local log
+        self.nb_checks_send_artimon_file = 0
+        self.nb_checks_send_artimon_socket = 0
+        self.nb_broks_send_artimon_file = 0
+        self.nb_broks_send_artimon_socket = 0
+        self.checkstemp = {}
+        
         # Log init
         logger.load_obj(self)
 
@@ -137,6 +145,10 @@ class Scheduler:
     def reset(self):
         self.must_run = True
         del self.waiting_results[:]
+        if self.checkstemp == {} :
+            self.checkstemp = self.checks.copy()
+        else :
+            self.checkstemp.update(self.checks)
         for o in self.checks, self.actions, self.downtimes, self.contact_downtimes, self.comments, self.broks:
             o.clear()
 
@@ -231,7 +243,7 @@ class Scheduler:
                 f.write(s)
             for a in self.actions.values():
                 s = '%s: %s:%s:%s:%s:%s:%s\n' % (a.__class__.my_type.upper(), a.id, a.status, a.t_to_go, a.reactionner_tag, a.command, a.worker)
-                f.write(s)                
+                f.write(s)
             for b in self.broks.values():
                 s = 'BROK: %s:%s\n' % (b.id, b.type)
                 f.write(s)
@@ -494,13 +506,11 @@ class Scheduler:
                     # must be ok to launch, and not an internal one (business rules based)
                     if c.status == 'scheduled' and c.is_launchable(now) and not c.internal:
                         c.status = 'inpoller'
-                        c.worker = worker_name
                         # We do not send c, because it is a link (c.ref) to
                         # host/service and poller do not need it. It only
                         # need a shell with id, command and defaults
                         # parameters. It's the goal of copy_shell
                         res.append(c.copy_shell())
-
         # If reactionner want to notify too
         if do_actions:
             for a in self.actions.values():
@@ -768,7 +778,7 @@ class Scheduler:
                     pyro.set_timeout(con, 120)
                     logger.debug("Sending %d actions" % len(lst))
                     con.push_actions(lst, self.instance_id)
-                    self.nb_checks_send += len(lst)
+                    self.nb_checks_send += len(lst)	
                 except Pyro.errors.ProtocolError, exp:
                     logger.warning("Connection problem to the %s %s: %s" % (type, p['name'], str(exp)))
                     p['con'] = None
@@ -805,6 +815,7 @@ class Scheduler:
                     nb_received = len(results)
                     self.nb_check_received += nb_received
                     logger.debug("Received %d passive results" % nb_received)
+                    self.nb_check_received_artimon += nb_received
                     for result in results:
                         result.set_type_passive()
                     self.waiting_results.extend(results)
@@ -841,6 +852,7 @@ class Scheduler:
                     results = con.get_returns(self.instance_id)
                     nb_received = len(results)
                     self.nb_check_received += nb_received
+                    self.nb_check_received_artimon += nb_received
                     logger.debug("Received %d passive results" % nb_received)
                     for result in results:
                         result.set_type_passive()
@@ -1193,7 +1205,7 @@ class Scheduler:
                 'command_file': self.conf.command_file
                 }
         b = Brok('program_status', data)
-        return b
+        return b  
 
     # Called every 1sec to consume every result in services or hosts
     # with these results, they are OK, CRITICAL, UP/DOWN, etc...
@@ -1211,7 +1223,6 @@ class Scheduler:
                 item = c.ref
                 item.consume_result(c)
 
-
         # All 'finished' checks (no more dep) raise checks they depends on
         for c in self.checks.values():
             if c.status == 'havetoresolvedep':
@@ -1226,7 +1237,6 @@ class Scheduler:
             if c.status == 'waitdep' and len(c.depend_on) == 0:
                 item = c.ref
                 item.consume_result(c)
-
     # Called every 1sec to delete all checks in a zombie state
     # zombie = not useful anymore
     def delete_zombie_checks(self):
@@ -1235,10 +1245,9 @@ class Scheduler:
         for c in self.checks.values():
             if c.status == 'zombie':
                 id_to_del.append(c.id)
-        # une petite tape dans le dos et tu t'en vas, merci...
-        # *pat pat* GFTO, thks :)
         for id in id_to_del:
-            del self.checks[id]  # ZANKUSEN!
+            del self.checks[id] # ZANKUSEN!
+                
 
     # Called every 1sec to delete all actions in a zombie state
     # zombie = not useful anymore
@@ -1410,7 +1419,90 @@ class Scheduler:
         for b in self.broks.values():
             b.sent_to_sched_externals = True
         logger.debug("Time to send %s broks (after %d secs)" % (nb_sent, time.time() - t0))
-
+    
+        
+    def write_file_log(self):
+        # clear dict
+        self.checkstemp.clear()
+        # create logs
+        now = time.time()
+        logfile = open('/home/Alexis.Autret/shinken/var/artimon.log', 'a')
+        #time
+        now = time.time()
+        # poller number
+        a = len(self.pollers)
+        b = str(self.pollers)
+        x = 0
+        # copy dict
+        self.checkstemp = self.checks.copy()
+        #nb_scheduled =0
+        #nb_inpoller =0
+        #nb_zombies =0 
+        try:
+            while x < a:
+                nb_scheduled =0
+                nb_inpoller =0
+                nb_zombies =0 
+                p = self.pollers[x]['poller_tags']
+                #decode unicode
+                p=repr(p)
+                p=p[3:-2]
+                for c in self.checkstemp.values():
+                    if c.status == 'scheduled' and c.poller_tag == p:
+                        nb_scheduled +=1
+                    if c.status == 'inpoller' and c.poller_tag == p:
+                        nb_inpoller +=1
+                    if c.status == 'zombies' and c.poller_tag == p:
+                        nb_zombies +=1
+                logfile.write("%d %s nb_scheduled %s \n%d %s nb_inpoller %s \n%d %s nb_zombies %s \n" % (now, p, nb_scheduled, now, p, nb_inpoller, now, p, nb_zombies))
+                x = x+1
+            logfile.write("%d check_send  %s \n%d broks_send  %s \n" % (now, self.nb_checks_send_artimon_file, now, self.nb_broks_send_artimon_file))
+            self.nb_checks_send_artimon_file = 0
+            self.nb_broks_send_artimon_file = 0       
+        except IOError, e:
+            if e.errno != 32:
+                raise
+        logfile.close()
+                
+    def send_artimon_log(self):
+        #init socket
+        connexion_avec_serveur = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        connexion_avec_serveur.connect(('127.0.0.1', 1234))
+        # clear dict
+        self.checkstemp.clear()
+        #time
+        now = time.time()
+       # poller number
+        a = len(self.pollers)
+        b = str(self.pollers)
+        x = 0
+        # copy dict
+        self.checkstemp = self.checks.copy()
+        try:
+            while x < a:
+                nb_scheduled =0
+                nb_inpoller =0
+                nb_zombies =0 
+                p = self.pollers[x]['poller_tags']
+                #decode unicode 
+                p=repr(p)
+                p=p[3:-2]
+                for c in self.checkstemp.values():
+                    if c.status == 'scheduled' and c.poller_tag == p:
+                        nb_scheduled +=1
+                    if c.status == 'inpoller' and c.poller_tag == p:
+                        nb_inpoller +=1
+                    if c.status == 'zombies' and c.poller_tag == p:
+                        nb_zombies +=1
+                connexion_avec_serveur.send("%d %s nb_scheduled %s \n%d %s nb_inpoller %s \n%d %s nb_zombies %s \n" % (now, p, nb_scheduled, now, p, nb_inpoller, now, p, nb_zombies))
+                x = x+1
+                connexion_avec_serveur.send("%d check_send  %s \n%d broks_send  %s \n" % (now, self.nb_checks_send_artimon_socket, now, self.nb_broks_send_artimon_socket))
+            self.nb_checks_send_artimon_socket = 0
+            self.nb_broks_send_artimon_socket = 0       
+        except IOError, e:
+            if e.errno != 32:
+                raise
+            
     # Get 'objects' from external modules
     # right now on nobody uses it, but it can be useful
     # for a module like livestatus to raise external
@@ -1424,16 +1516,12 @@ class Scheduler:
                     self.add(o)
                 except Empty:
                     full_queue = False
-
-    # Main function
+# Main function
     def run(self):
-        # Then we see if we've got info in the retention file
         self.retention_load()
-
         # Finally start the external modules now we got our data
         self.hook_point('pre_scheduler_mod_start')
         self.sched_daemon.modules_manager.start_external_instances(late_start=True)
-
         # Ok, now all is initialized, we can make the initial broks
         logger.debug("Starting initial broks")
         t0 = time.time()
@@ -1446,6 +1534,7 @@ class Scheduler:
         # Now connect to the passive satellites if needed
         for p_id in self.pollers:
             self.pynag_con_init(p_id, type='poller')
+  
 
         # Ticks are for recurrent function call like consume
         # del zombies etc
@@ -1502,6 +1591,12 @@ class Scheduler:
             nb_inpoller = len([c for c in self.checks.values() if c.status == 'inpoller'])
             nb_zombies = len([c for c in self.checks.values() if c.status == 'zombie'])
             nb_notifications = len(self.actions)
+            # stats artimon
+            self.nb_checks_total_artimon = (len(self.checks))
+            self.nb_scheduled_artimon = nb_scheduled
+            self.nb_inpoller_artimon = nb_inpoller
+            self.nb_zombies_artimon = nb_zombies
+            self.nb_notifications_artimon = nb_notifications
 
             logger.debug("Checks: total %s, scheduled %s, inpoller %s, zombies %s, notifications %s" %\
                 (len(self.checks), nb_scheduled, nb_inpoller, nb_zombies, nb_notifications))
@@ -1512,15 +1607,31 @@ class Scheduler:
             lat_avg, lat_min, lat_max = nighty_five_percent(latencies)
             if lat_avg is not None:
                 logger.debug("Latency (avg/min/max): %.2f/%.2f/%.2f" % (lat_avg, lat_min, lat_max))
-
             # print "Notifications:", nb_notifications
             now = time.time()
-
             if self.nb_checks_send != 0:
                 logger.debug("Nb checks/notifications/event send: %s" % self.nb_checks_send)
+                if self.nb_checks_send_artimon_file != 0 :
+                    b = self.nb_checks_send
+                    self.nb_checks_send_artimon_file = self.nb_checks_send_artimon_file + b
+                if self.nb_checks_send_artimon_socket != 0 :
+                    b = self.nb_checks_send
+                    self.nb_checks_send_artimon_socket = self.nb_checks_send_artimon_socket + b
+                else :    
+                    self.nb_checks_send_artimon_file = self.nb_checks_send
+                    self.nb_checks_send_artimon_socket = self.nb_checks_send                   
             self.nb_checks_send = 0
             if self.nb_broks_send != 0:
                 logger.debug("Nb Broks send: %s" % self.nb_broks_send)
+                if self.nb_broks_send_artimon_file == 0 :
+                    b = self.nb_broks_send
+                    self.nb_broks_send_artimon_file = self.nb_broks_send_artimon_file + b
+                if self.nb_broks_send_artimon_socket == 0 :
+                    b = self.nb_broks_send
+                    self.nb_broks_send_artimon_socket = self.nb_broks_send_artimon_file + b    
+                else :    
+                    self.nb_broks_send_artimon_file = self.nb_broks_send
+                    self.nb_broks_send_artimon_socket = self.nb_broks_send
             self.nb_broks_send = 0
 
             time_elapsed = now - gogogo
@@ -1534,6 +1645,7 @@ class Scheduler:
                 logger.debug('I need to dump my objects!')
                 self.dump_objects()
                 self.need_objects_dump = False
+       
 
         # WE must save the retention at the quit BY OURSELF
         # because our daemon will not be able to do it for us
