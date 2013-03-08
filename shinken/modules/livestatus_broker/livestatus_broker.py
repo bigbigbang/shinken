@@ -52,12 +52,39 @@ from shinken.misc.datamanager import datamgr
 from livestatus import LiveStatus
 from livestatus_regenerator import LiveStatusRegenerator
 from livestatus_query_cache import LiveStatusQueryCache
+####from livestatus_counters import LiveStatusCounters
 
+import threading 
+import time
+import socket
+        
+class Stats(threading.Thread):
+    nb_request = 0
+    nb_broks = 0
+    def run(self):
+        #init socket
+        connexion_avec_serveur = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        connexion_avec_serveur.connect(('127.0.0.1', 1235))
+        try:
+            time.sleep(2)
+            connexion_avec_serveur.send("nb request : %s\n" % (str(Stats.nb_request)))
+            #connexion_avec_serveur.send("nb query : %s\n" % (str(LiveStatus_broker.nb_query)))
+            connexion_avec_serveur.send("nb broks : %s" % (str(Stats.nb_broks)))
+            ###t = str(LiveStatusCounters.self.counters)
+            ###connexion_avec_serveur.send("test : %s" % (t))
+            Stats.nb_broks = 0
+            #LiveStatus_broker.nb_query = 0
+            Stats.nb_request = 0
+        except IOError, e:
+            if e.errno != 32:
+                #logfile.write("##argh## \n")
+                raise
+        a = Stats()
+        a.start()
 
 # Class for the LiveStatus Broker
 # Get broks and listen to livestatus query language requests
-class LiveStatus_broker(BaseModule, Daemon):
-
+class LiveStatus_broker(BaseModule, Daemon):   
     def __init__(self, modconf):
         BaseModule.__init__(self, modconf)
         # We can be in a scheduler. If so, we keep a link to it to speed up regenerator phase
@@ -65,6 +92,7 @@ class LiveStatus_broker(BaseModule, Daemon):
         self.plugins = []
         self.use_threads = (getattr(modconf, 'use_threads', '0') == '1')
         self.host = getattr(modconf, 'host', '127.0.0.1')
+
         if self.host == '*':
             self.host = '0.0.0.0'
         self.port = getattr(modconf, 'port', None)
@@ -130,6 +158,7 @@ class LiveStatus_broker(BaseModule, Daemon):
         m = MacroResolver()
         m.output_macros = ['HOSTOUTPUT', 'HOSTPERFDATA', 'HOSTACKAUTHOR', 'HOSTACKCOMMENT', 'SERVICEOUTPUT', 'SERVICEPERFDATA', 'SERVICEACKAUTHOR', 'SERVICEACKCOMMENT']
         self.rg.load_external_queue(self.from_q)
+        
 
     # This is called only when we are in a scheduler
     # and just before we are started. So we can gain time, and
@@ -164,12 +193,10 @@ class LiveStatus_broker(BaseModule, Daemon):
 
     def main(self):
         self.set_proctitle(self.name)
-
         self.log = logger
         self.log.load_obj(self)
         # Daemon like init
         self.debug_output = []
-
         self.modules_manager = ModulesManager('livestatus', self.find_modules_path(), [])
         self.modules_manager.set_modules(self.modules)
         # We can now output some previously silenced debug output
@@ -370,7 +397,7 @@ class LiveStatus_broker(BaseModule, Daemon):
             self.db.close()
         except:
             pass
-
+            
     # It's the thread function that will get broks
     # and update data. Will lock the whole thing
     # while updating
@@ -378,10 +405,12 @@ class LiveStatus_broker(BaseModule, Daemon):
         logger.info("[Livestatus Broker] Livestatus query thread started")
         # This is the main object of this broker where the action takes place
         self.livestatus = LiveStatus(self.datamgr, self.query_cache, self.db, self.pnp_path, self.from_q)
-
         backlog = 5
         size = 8192
         self.listeners = []
+        #start stats
+        a = Stats()
+        a.start()
         if self.port:
             server = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
             server.setblocking(0)
@@ -393,7 +422,7 @@ class LiveStatus_broker(BaseModule, Daemon):
         if self.socket:
             if os.path.exists(self.socket):
                 os.remove(self.socket)
-            # I f the socket dir is not existing, create it
+            # If the socket dir is not existing, create it
             if not os.path.exists(os.path.dirname(self.socket)):
                 os.mkdir(os.path.dirname(self.socket))
             os.umask(0)
@@ -405,8 +434,8 @@ class LiveStatus_broker(BaseModule, Daemon):
             logger.info("[Livestatus Broker] listening on unix socket: %s" % str(self.socket))
         self.input = self.listeners[:]
         open_connections = {}
-
         while not self.interrupted:
+            Stats.nb_broks += 1
             if self.use_threads:
                 self.wait_for_no_writers()
                 self.livestatus.counters.calc_rate()
@@ -416,6 +445,7 @@ class LiveStatus_broker(BaseModule, Daemon):
                     for b in l:
                         # Un-serialize the brok data
                         b.prepare()
+                        
                         self.rg.manage_brok(b)
                         for mod in self.modules_manager.get_internal_instances():
                             try:
@@ -444,9 +474,9 @@ class LiveStatus_broker(BaseModule, Daemon):
 
             # Check for pending livestatus requests
             inputready, _, exceptready = select.select(self.input, [], [], 0)
-
             now = time.time()
             if True:
+                Stats.nb_request += 1
                 # It's True, this is a horrible implementation
                 # It doesn't use triggers yet, so it may be very slow.
                 for socketid in open_connections:
@@ -481,7 +511,7 @@ class LiveStatus_broker(BaseModule, Daemon):
                                     result = query.launch_query()
                                     response = query.response
                                     response.format_live_data(result, query.columns, query.aliases)
-                                    output, keepalive = response.respond()
+                                    output, keepalive = response.respond()   
                                     try:
                                         s.send(output)
                                         self.write_protocol('', output)
@@ -674,9 +704,11 @@ class LiveStatus_broker(BaseModule, Daemon):
                             kick_socket.close()
                             del open_connections[socketid]
                             self.input.remove(kick_socket)
-                            logger.info("[Livestatus Broker] Closed socket %d" % socketid)
-
+                            logger.info("[Livestatus Broker] Closed socket %d" % socketid)           
+        
         self.do_stop()
+        
+        
 
     def write_protocol(self, request, response):
         if self.debug_queries:
