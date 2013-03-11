@@ -64,7 +64,6 @@ class Scheduler:
         self.sched_daemon = scheduler_daemon
         # When set to false by us, we die and arbiter launch a new Scheduler
         self.must_run = True
-        
         self.waiting_results = []  # satellites returns us results
         # and to not wait for them, we put them here and
         # use them later
@@ -104,8 +103,8 @@ class Scheduler:
             17: ('check_for_expire_acknowledge', self.check_for_expire_acknowledge, 1),
             18: ('send_broks_to_modules', self.send_broks_to_modules, 1),
             19: ('get_objects_from_from_queues', self.get_objects_from_from_queues, 1),
-            20: ('write_file_log', self.write_file_log, 20),
-            21: ('send_socket_log', self.send_socket_log, 5),
+            20: ('write_file_log', self.write_file_log, 5),
+            #21: ('send_socket_log', self.send_socket_log, 10),
         }      
 
         # stats part
@@ -113,14 +112,15 @@ class Scheduler:
         self.nb_actions_send = 0
         self.nb_broks_send = 0
         self.nb_check_received = 0
-        # local log
-        self.nb_checks_send_file = 0
-        self.nb_broks_send_file = 0
+        # local log file
         self.nb_checks_total_file = 0
-        self.nb_checks_send_socket = 0
-        self.nb_broks_send_socket = 0
-        self.nb_checks_total_socket = 0
-        self.checkstemp = {}
+        self.nb_scheduled_file = 0 
+        self.nb_inpoller_file = 0
+        self.nb_zombies_file = 0
+        self.checkstemp_file = {}
+        # temp dict lenght
+        self.temp_dict_lenght =0
+
         
         # Log init
         logger.load_obj(self)
@@ -147,10 +147,6 @@ class Scheduler:
     def reset(self):
         self.must_run = True
         del self.waiting_results[:]
-        if self.checkstemp == {} :
-            self.checkstemp = self.checks.copy()
-        else :
-            self.checkstemp.update(self.checks)
         for o in self.checks, self.actions, self.downtimes, self.contact_downtimes, self.comments, self.broks:
             o.clear()
 
@@ -1419,101 +1415,97 @@ class Scheduler:
         for b in self.broks.values():
             b.sent_to_sched_externals = True
         logger.debug("Time to send %s broks (after %d secs)" % (nb_sent, time.time() - t0))
-    
-        
+
+
     def write_file_log(self):
-        # clear dict
-        self.checkstemp.clear()
-        # create logs
-        now = time.time()
         logfile = open('/home/Alexis.Autret/shinken/var/artimon.log', 'a')
         #time
         now = time.time()
-        # poller number
+        # number of poller
         a = len(self.pollers)
         b = str(self.pollers)
         x = 0
-        # copy dict
-        self.checkstemp = self.checks.copy()
-        #nb_scheduled =0
-        #nb_inpoller =0
-        #nb_zombies =0 
+        #logfile.write(str(self.checks.values()))
+        #logfile.write(str(self.checks.keys()))
         try:
             while x < a:
-                nb_scheduled =0
-                nb_inpoller =0
-                nb_zombies =0 
                 p = self.pollers[x]['poller_tags']
                 #decode unicode
                 p=repr(p)
                 p=p[3:-2]
-                for c in self.checkstemp.values():
+                for c in self.checkstemp_file.values():
                     if c.status == 'scheduled' and c.poller_tag == p:
-                        nb_scheduled +=1
+                        self.nb_scheduled_file +=1
                     if c.status == 'inpoller' and c.poller_tag == p:
-                        nb_inpoller +=1
-                    if c.status == 'zombies' and c.poller_tag == p:
-                        nb_zombies +=1
+                        self.nb_inpoller_file +=1
+                    if c.status == 'zombie' and c.poller_tag == p:
+                        self.nb_zombies_file +=1
                     if c.poller_tag == p:
                         self.nb_checks_total_file += 1
                 logfile.write("%d %s Total check %s \n" % (now, p, self.nb_checks_total_file))        
-                logfile.write("%d %s nb_scheduled %s \n%d %s nb_inpoller %s \n%d %s nb_zombies %s \n" % (now, p, nb_scheduled, now, p, nb_inpoller, now, p, nb_zombies))
-                logfile.write("%d check_send  %s \n%d broks_send  %s \n" % (now, self.nb_checks_send_file, now, self.nb_broks_send_file))
+                logfile.write("%d %s nb_scheduled %s \n%d %s nb_inpoller %s \n%d %s nb_zombies %s \n" % (now, p, self.nb_scheduled_file, now, p, self.nb_inpoller_file, now, p, self.nb_zombies_file))
+                #logfile.write("%d check_send  %s \n%d broks_send  %s \n" % (now, self.nb_checks_send_file, now, self.nb_broks_send_file))
                 self.nb_checks_total_file = 0
+                self.nb_scheduled_file = 0
+                self.nb_inpoller_file = 0
+                self.nb_zombies_file = 0
                 x = x+1
             
-            self.nb_checks_send_file = 0
-            self.nb_broks_send_file = 0  
+            #self.nb_checks_send_file = 0
+            #self.nb_broks_send_file = 0  
                  
         except IOError, e:
             if e.errno != 32:
                 raise
         logfile.close()
+        # clear temp dict
+        self.checkstemp_file.clear()
+        
                 
-    def send_socket_log(self):
-        #init socket
-        connexion_avec_serveur = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-        connexion_avec_serveur.connect(('127.0.0.1', 1234))
-        # clear dict
-        self.checkstemp.clear()
-        #time
-        now = time.time()
-       # poller number
-        a = len(self.pollers)
-        b = str(self.pollers)
-        x = 0
-        # copy dict
-        self.checkstemp = self.checks.copy()
-        try:
-            while x < a:
-                nb_scheduled =0
-                nb_inpoller =0
-                nb_zombies =0 
-                p = self.pollers[x]['poller_tags']
-                #decode unicode 
-                p=repr(p)
-                p=p[3:-2]
-                for c in self.checkstemp.values():
-                    if c.status == 'scheduled' and c.poller_tag == p:
-                        nb_scheduled +=1
-                    if c.status == 'inpoller' and c.poller_tag == p:
-                        nb_inpoller +=1
-                    if c.status == 'zombies' and c.poller_tag == p:
-                        nb_zombies +=1
-                    if c.poller_tag == p:
-                        self.nb_checks_total_socket +=1
-                connexion_avec_serveur.send("%d %s Total check %s \n" % (now, p, self.nb_checks_total_socket))       
-                connexion_avec_serveur.send("%d %s nb_scheduled %s \n%d %s nb_inpoller %s \n%d %s nb_zombies %s \n" % (now, p, nb_scheduled, now, p, nb_inpoller, now, p, nb_zombies))
-                connexion_avec_serveur.send("%d check_send  %s \n%d broks_send  %s \n" % (now, self.nb_checks_send_socket, now, self.nb_broks_send_socket))
-                self.nb_checks_total_socket = 0
-                x = x+1
+    #def send_socket_log(self):
+        ##init socket
+        #connexion_avec_serveur = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        #connexion_avec_serveur.connect(('127.0.0.1', 1234))
+        ## clear dict
+        #self.checkstemp.clear()
+        ##time
+        #now = time.time()
+       ## poller number
+        #a = len(self.pollers)
+        #b = str(self.pollers)
+        #x = 0
+        ## copy dict
+        #self.checkstemp = self.checks.copy()
+        #try:
+            #while x < a:
+                #nb_scheduled =0
+                #nb_inpoller =0
+                #nb_zombies =0 
+                #p = self.pollers[x]['poller_tags']
+                ##decode unicode 
+                #p=repr(p)
+                #p=p[3:-2]
+                #for c in self.checkstemp.values():
+                    #if c.status == 'scheduled' and c.poller_tag == p:
+                        #nb_scheduled +=1
+                    #if c.status == 'inpoller' and c.poller_tag == p:
+                        #nb_inpoller +=1
+                    #if c.status == 'zombies' and c.poller_tag == p:
+                        #nb_zombies +=1
+                    #if c.poller_tag == p:
+                        #self.nb_checks_total_socket +=1
+                #connexion_avec_serveur.send("%d %s Total check %s \n" % (now, p, self.nb_checks_total_socket))       
+                #connexion_avec_serveur.send("%d %s nb_scheduled %s \n%d %s nb_inpoller %s \n%d %s nb_zombies %s \n" % (now, p, nb_scheduled, now, p, nb_inpoller, now, p, nb_zombies))
+                #connexion_avec_serveur.send("%d check_send  %s \n%d broks_send  %s \n" % (now, self.nb_checks_send_socket, now, self.nb_broks_send_socket))
+                #self.nb_checks_total_socket = 0
+                #x = x+1
                 
-            self.nb_checks_send_socket = 0
-            self.nb_broks_send_socket = 0
+            #self.nb_checks_send_socket = 0
+            #self.nb_broks_send_socket = 0
                    
-        except IOError, e:
-            if e.errno != 32:
-                raise
+        #except IOError, e:
+            #if e.errno != 32:
+                #raise
             
     # Get 'objects' from external modules
     # right now on nobody uses it, but it can be useful
@@ -1603,9 +1595,26 @@ class Scheduler:
             nb_inpoller = len([c for c in self.checks.values() if c.status == 'inpoller'])
             nb_zombies = len([c for c in self.checks.values() if c.status == 'zombie'])
             nb_notifications = len(self.actions)
-
+            
             logger.debug("Checks: total %s, scheduled %s, inpoller %s, zombies %s, notifications %s" %\
                 (len(self.checks), nb_scheduled, nb_inpoller, nb_zombies, nb_notifications))
+                
+            # perso stats
+            if self.checkstemp_file == {}:
+                self.temp_dict_lenght = 1
+            if self.temp_dict_lenght == 0:
+                self.temp_dict_lenght = 1
+            if self.temp_dict_lenght > 1:
+                self.temp_dict_lenght=max(self.checkstemp_file.keys())
+                #logger.info("################different de 0 donc %s" % (max(self.checkstemp_file.keys())))
+                
+            for k,v in self.checks.items():
+                self.temp_dict_lenght = self.temp_dict_lenght + 1
+                self.checkstemp_file.update({self.temp_dict_lenght:v})
+                #logger.info("################insere key: %s value : %s" % (str(self.temp_dict_lenght), str(v)))
+                #logger.info("#########key : %s value : %s" % (str(v),str(i)))
+
+            
 
             # Get a overview of the latencies with just
             # a 95 percentile view, but lso min/max values
@@ -1617,27 +1626,27 @@ class Scheduler:
             now = time.time()
             if self.nb_checks_send != 0:
                 logger.debug("Nb checks/notifications/event send: %s" % self.nb_checks_send)
-                if self.nb_checks_send_file != 0 :
-                    b = self.nb_checks_send
-                    self.nb_checks_send_file = self.nb_checks_send_file + b
-                if self.nb_checks_send_socket != 0 :
-                    b = self.nb_checks_send
-                    self.nb_checks_send_socket = self.nb_checks_send_socket + b
-                else :    
-                    self.nb_checks_send_file = self.nb_checks_send
-                    self.nb_checks_send_socket = self.nb_checks_send                   
+                #if self.nb_checks_send_file != 0 :
+                    #b = self.nb_checks_send
+                    #self.nb_checks_send_file = self.nb_checks_send_file + b
+                #if self.nb_checks_send_socket != 0 :
+                    #b = self.nb_checks_send
+                    #self.nb_checks_send_socket = self.nb_checks_send_socket + b
+                #else :    
+                    #self.nb_checks_send_file = self.nb_checks_send
+                    #self.nb_checks_send_socket = self.nb_checks_send                   
             self.nb_checks_send = 0
             if self.nb_broks_send != 0:
                 logger.debug("Nb Broks send: %s" % self.nb_broks_send)
-                if self.nb_broks_send_file == 0 :
-                    b = self.nb_broks_send
-                    self.nb_broks_send_file = self.nb_broks_send_file + b
-                if self.nb_broks_send_socket == 0 :
-                    b = self.nb_broks_send
-                    self.nb_broks_send_socket = self.nb_broks_send_file + b    
-                else :    
-                    self.nb_broks_send_file = self.nb_broks_send
-                    self.nb_broks_send_socket = self.nb_broks_send
+                #if self.nb_broks_send_file == 0 :
+                    #b = self.nb_broks_send
+                    #self.nb_broks_send_file = self.nb_broks_send_file + b
+                #if self.nb_broks_send_socket == 0 :
+                    #b = self.nb_broks_send
+                    #self.nb_broks_send_socket = self.nb_broks_send_file + b    
+                #else :    
+                    #self.nb_broks_send_file = self.nb_broks_send
+                    #self.nb_broks_send_socket = self.nb_broks_send
             self.nb_broks_send = 0
 
             time_elapsed = now - gogogo
