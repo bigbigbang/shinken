@@ -56,13 +56,16 @@ Pyro_exp_pack = (Pyro.errors.ProtocolError, Pyro.errors.URIError, \
                     Pyro.errors.CommunicationError, \
                     Pyro.errors.DaemonError)
 
+
 class Scheduler:
     """Please Add a Docstring to describe the class here"""
-
+    gchecks = {}
+    gpollers = {}
     def __init__(self, scheduler_daemon):
         self.sched_daemon = scheduler_daemon
         # When set to false by us, we die and arbiter launch a new Scheduler
         self.must_run = True
+
         self.waiting_results = []  # satellites returns us results
         # and to not wait for them, we put them here and
         # use them later
@@ -102,23 +105,16 @@ class Scheduler:
             17: ('check_for_expire_acknowledge', self.check_for_expire_acknowledge, 1),
             18: ('send_broks_to_modules', self.send_broks_to_modules, 1),
             19: ('get_objects_from_from_queues', self.get_objects_from_from_queues, 1),
-            20: ('write_file_log1', self.write_file_log1, 5),
-            #21: ('send_socket_log1', self.send_socket_log1, 10),
-            22: ('get_log_file1', self.get_log_file1, 1),
-            #23: ('get_log_socket1', self.get_log_socket1, 1),
-        }      
+            20: ('get_file_log', self.get_file_log, 1),
+            21: ('write_file_log',self.write_file_log,10),
+        }
 
         # stats part
         self.nb_checks_send = 0
         self.nb_actions_send = 0
         self.nb_broks_send = 0
         self.nb_check_received = 0
-        # local log dict
-        self.checkstemp_file1 = {}
-        self.checkstemp_socket1 = {}
-        # temp dict lenght
-        self.temp_dict_lenght =0
-        
+
         # Log init
         logger.load_obj(self)
 
@@ -162,6 +158,7 @@ class Scheduler:
         self.services.optimize_service_search(conf.hosts)
         self.hosts = conf.hosts
         self.hosts.create_reversed_list()
+
         self.notificationways = conf.notificationways
         self.contacts = conf.contacts
         self.contacts.create_reversed_list()
@@ -177,6 +174,7 @@ class Scheduler:
         self.triggers.create_reversed_list()
         self.triggers.compile()
         self.triggers.load_objects(self)
+
 
         if not in_test:
             # Commands in the host/services/contacts are not real one
@@ -217,7 +215,8 @@ class Scheduler:
     def load_satellites(self, pollers, reactionners):
         self.pollers = pollers
         self.reactionners = reactionners
-
+        Scheduler.gpollers = self.pollers
+        
     # Oh... Arbiter want us to die... To launch a new Scheduler
     # "Mais qu'a-t-il de plus que je n'ais pas?"
     # "But.. On which point it is better than me?"
@@ -236,7 +235,7 @@ class Scheduler:
                 f.write(s)
             for a in self.actions.values():
                 s = '%s: %s:%s:%s:%s:%s:%s\n' % (a.__class__.my_type.upper(), a.id, a.status, a.t_to_go, a.reactionner_tag, a.command, a.worker)
-                f.write(s)
+                f.write(s)                
             for b in self.broks.values():
                 s = 'BROK: %s:%s\n' % (b.id, b.type)
                 f.write(s)
@@ -486,6 +485,7 @@ class Scheduler:
                           ):
         res = []
         now = time.time()
+
         # If poller want to do checks
         if do_checks:
             for c in self.checks.values():
@@ -498,11 +498,13 @@ class Scheduler:
                     # must be ok to launch, and not an internal one (business rules based)
                     if c.status == 'scheduled' and c.is_launchable(now) and not c.internal:
                         c.status = 'inpoller'
+                        c.worker = worker_name
                         # We do not send c, because it is a link (c.ref) to
                         # host/service and poller do not need it. It only
                         # need a shell with id, command and defaults
                         # parameters. It's the goal of copy_shell
                         res.append(c.copy_shell())
+
         # If reactionner want to notify too
         if do_actions:
             for a in self.actions.values():
@@ -511,9 +513,11 @@ class Scheduler:
                 # So if not the good one, loop for next :)
                 if not a.reactionner_tag in reactionner_tags:
                     continue
+
                 # same for module_type
                 if not a.module_type in module_types:
                     continue
+
                 # And now look for can launch or not :)
                 if a.status == 'scheduled' and a.is_launchable(now):
                     a.status = 'inpoller'
@@ -525,6 +529,7 @@ class Scheduler:
                         # notification_commands) which are executed in the reactionner.
                         item = a.ref
                         childnotifications = []
+
                         if not item.notification_is_blocked_by_item(a.type, now):
                             # If it is possible to send notifications of this type at the current time, then create
                             # a single notification for each contact of this item.
@@ -534,6 +539,7 @@ class Scheduler:
                                 self.add(c)  # this will send a brok
                                 new_c = c.copy_shell()
                                 res.append(new_c)
+
                         # If we have notification_interval then schedule the next notification (problems only)
                         if a.type == 'PROBLEM':
                             # Update the ref notif number after raise the one of the notification
@@ -607,7 +613,9 @@ class Scheduler:
 
             except AttributeError, exp:  # bad object, drop it
                 logger.warning('put_results:: get bad notification : %s ' % str(exp))
-                
+            
+
+
         elif c.is_a == 'check':
             try:
                 if c.status == 'timeout':
@@ -617,6 +625,7 @@ class Scheduler:
                 self.checks[c.id].status = 'waitconsume'
             except KeyError, exp:
                 pass
+
 
         elif c.is_a == 'eventhandler':
             # It just die
@@ -763,7 +772,7 @@ class Scheduler:
                     pyro.set_timeout(con, 120)
                     logger.debug("Sending %d actions" % len(lst))
                     con.push_actions(lst, self.instance_id)
-                    self.nb_checks_send += len(lst)	
+                    self.nb_checks_send += len(lst)
                 except Pyro.errors.ProtocolError, exp:
                     logger.warning("Connection problem to the %s %s: %s" % (type, p['name'], str(exp)))
                     p['con'] = None
@@ -906,6 +915,13 @@ class Scheduler:
     # for the moment, just the status and the notifications.
     def retention_load(self):
         self.hook_point('load_retention')
+        
+    # get log file
+    def get_file_log(self):
+        self.hook_point('get_file_log')
+    # write log file
+    def write_file_log(self):
+       self.hook_point('write_file_log')
 
     # Helper function for module, will give the host and service
     # data
@@ -1188,7 +1204,7 @@ class Scheduler:
                 'command_file': self.conf.command_file
                 }
         b = Brok('program_status', data)
-        return b  
+        return b
 
     # Called every 1sec to consume every result in services or hosts
     # with these results, they are OK, CRITICAL, UP/DOWN, etc...
@@ -1206,6 +1222,7 @@ class Scheduler:
                 item = c.ref
                 item.consume_result(c)
 
+
         # All 'finished' checks (no more dep) raise checks they depends on
         for c in self.checks.values():
             if c.status == 'havetoresolvedep':
@@ -1220,6 +1237,7 @@ class Scheduler:
             if c.status == 'waitdep' and len(c.depend_on) == 0:
                 item = c.ref
                 item.consume_result(c)
+
     # Called every 1sec to delete all checks in a zombie state
     # zombie = not useful anymore
     def delete_zombie_checks(self):
@@ -1228,9 +1246,10 @@ class Scheduler:
         for c in self.checks.values():
             if c.status == 'zombie':
                 id_to_del.append(c.id)
+        # une petite tape dans le dos et tu t'en vas, merci...
+        # *pat pat* GFTO, thks :)
         for id in id_to_del:
-            del self.checks[id] # ZANKUSEN!
-                
+            del self.checks[id]  # ZANKUSEN!
 
     # Called every 1sec to delete all actions in a zombie state
     # zombie = not useful anymore
@@ -1397,150 +1416,12 @@ class Scheduler:
             to_send = [b for b in self.broks.values() if not getattr(b, 'sent_to_sched_externals', False) and mod.want_brok(b)]
             q.put(to_send)
             nb_sent += len(to_send)
+
         # No more need to send them
         for b in self.broks.values():
             b.sent_to_sched_externals = True
         logger.debug("Time to send %s broks (after %d secs)" % (nb_sent, time.time() - t0))
 
-
-    def write_file_log1(self):
-        # logfile path :
-        logfile = open('/home/Alexis.Autret/shinken/var/artimon.log', 'a')
-        # local stats var and global reset
-        nb_scheduled = 0
-        nb_inpoller = 0
-        nb_zombies = 0
-        nb_checks_total = 0
-        #time
-        now = time.time()
-        # number of poller
-        a = len(self.pollers)
-        b = str(self.pollers)
-        x = 0
-        # will get stats for each poller_tags
-        try:
-            while x < a:
-                p = self.pollers[x]['poller_tags']
-                #decode unicode
-                p=repr(p)
-                p=p[3:-2]
-                # start stats count
-                for c in self.checkstemp_file1.values():
-                    if c.status == 'scheduled' and c.poller_tag == p:
-                        nb_scheduled +=1
-                    if c.status == 'inpoller' and c.poller_tag == p:
-                        nb_inpoller +=1
-                    if c.status == 'zombie' and c.poller_tag == p:
-                        nb_zombies +=1
-                    if c.poller_tag == p:
-                        nb_checks_total += 1
-                logfile.write("%d %s Total check %s \n" % (now, p, nb_checks_total))        
-                logfile.write("%d %s nb_scheduled %s \n%d %s nb_inpoller %s \n%d %s nb_zombies %s \n" % (now, p, nb_scheduled, now, p, nb_inpoller, now, p, nb_zombies))
-                #logfile.write("%d check_send  %s \n%d broks_send  %s \n" % (now, self.nb_checks_send_file, now, self.nb_broks_send_file))
-                #reset stats by poller
-                nb_checks_total = 0
-                nb_scheduled = 0
-                nb_inpoller = 0
-                nb_zombies = 0
-                x = x+1
-            #self.nb_checks_send_file = 0
-            #self.nb_broks_send_file = 0  
-        except IOError, e:
-            if e.errno != 32:
-                raise
-        # close file
-        logfile.close()
-        # clear temp dict
-        self.checkstemp_file1.clear()
-        
-    def send_socket_log1(self):
-        # local stats var and global reset
-        nb_scheduled = 0
-        nb_inpoller = 0
-        nb_zombies = 0
-        nb_checks_total = 0
-        #init socket
-        connexion_avec_serveur = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-        connexion_avec_serveur.connect(('127.0.0.1', 1234))
-        #time
-        now = time.time()
-        # number of poller
-        a = len(self.pollers)
-        b = str(self.pollers)
-        x = 0
-        # will get stats for each poller_tags
-        try:
-            while x < a:
-                p = self.pollers[x]['poller_tags']
-                #decode unicode
-                p=repr(p)
-                p=p[3:-2]
-                # start stats count
-                for c in self.checkstemp_socket1.values():
-                    if c.status == 'scheduled' and c.poller_tag == p:
-                        nb_scheduled +=1
-                    if c.status == 'inpoller' and c.poller_tag == p:
-                        nb_inpoller +=1
-                    if c.status == 'zombie' and c.poller_tag == p:
-                        nb_zombies +=1
-                    if c.poller_tag == p:
-                        nb_checks_total += 1
-                connexion_avec_serveur.send("%d %s Total check %s \n" % (now, p, nb_checks_total))        
-                connexion_avec_serveur.send("%d %s nb_scheduled %s \n%d %s nb_inpoller %s \n%d %s nb_zombies %s \n" % (now, p, nb_scheduled, now, p, nb_inpoller, now, p, nb_zombies))
-                #connexion_avec_serveur.send("%d check_send  %s \n%d broks_send  %s \n" % (now, self.nb_checks_send_socket, now, self.nb_broks_send_socket))
-                #reset stats by poller
-                nb_checks_total = 0
-                nb_scheduled = 0
-                nb_inpoller = 0
-                nb_zombies = 0
-                x = x+1
-            #self.nb_checks_send_file = 0
-            #self.nb_broks_send_file = 0  
-        except IOError, e:
-            if e.errno != 32:
-                raise
-        # clear temp dict
-        self.checkstemp_socket1.clear()
- 
-    def get_log_file1(self):
-    #name of local dict
-        currentdict = self.checkstemp_file1
-    # temp dict lenght
-        if currentdict == {}:
-            self.temp_dict_lenght = 1
-        if self.temp_dict_lenght == 0:
-            self.temp_dict_lenght = 1
-        if self.temp_dict_lenght > 1:
-            self.temp_dict_lenght=max(currentdict.keys())
-     # copy checks in checks_temp       
-        for k,v in self.checks.items():
-            if self.temp_dict_lenght > 1:
-                self.temp_dict_lenght=max(currentdict.keys())
-            self.temp_dict_lenght = self.temp_dict_lenght + 1
-            currentdict.update({self.temp_dict_lenght:v})
-        #logger.info("################insere key: %s value : %s" % (str(self.temp_dict_lenght), str(v)))
-        #logger.info("#########key : %s value : %s" % (str(v),str(i)))
-    
-    def get_log_socket1(self):
-    #name of local dict
-        currentdict = self.checkstemp_socket1
-    # temp dict lenght
-        if currentdict == {}:
-            self.temp_dict_lenght = 1
-        if self.temp_dict_lenght == 0:
-            self.temp_dict_lenght = 1
-        if self.temp_dict_lenght > 1:
-            self.temp_dict_lenght=max(currentdict.keys())
-     # copy checks in checks_temp       
-        for k,v in self.checks.items():
-            if self.temp_dict_lenght > 1:
-                self.temp_dict_lenght=max(currentdict.keys())
-            self.temp_dict_lenght = self.temp_dict_lenght + 1
-            currentdict.update({self.temp_dict_lenght:v})
-        #logger.info("################insere key: %s value : %s" % (str(self.temp_dict_lenght), str(v)))
-        #logger.info("#########key : %s value : %s" % (str(v),str(i)))
-
-            
     # Get 'objects' from external modules
     # right now on nobody uses it, but it can be useful
     # for a module like livestatus to raise external
@@ -1554,12 +1435,16 @@ class Scheduler:
                     self.add(o)
                 except Empty:
                     full_queue = False
-# Main function
+
+    # Main function
     def run(self):
+        # Then we see if we've got info in the retention file
         self.retention_load()
+
         # Finally start the external modules now we got our data
         self.hook_point('pre_scheduler_mod_start')
         self.sched_daemon.modules_manager.start_external_instances(late_start=True)
+
         # Ok, now all is initialized, we can make the initial broks
         logger.debug("Starting initial broks")
         t0 = time.time()
@@ -1572,7 +1457,6 @@ class Scheduler:
         # Now connect to the passive satellites if needed
         for p_id in self.pollers:
             self.pynag_con_init(p_id, type='poller')
-  
 
         # Ticks are for recurrent function call like consume
         # del zombies etc
@@ -1629,12 +1513,11 @@ class Scheduler:
             nb_inpoller = len([c for c in self.checks.values() if c.status == 'inpoller'])
             nb_zombies = len([c for c in self.checks.values() if c.status == 'zombie'])
             nb_notifications = len(self.actions)
-            
+
             logger.debug("Checks: total %s, scheduled %s, inpoller %s, zombies %s, notifications %s" %\
                 (len(self.checks), nb_scheduled, nb_inpoller, nb_zombies, nb_notifications))
-                
-           
-            
+
+            Scheduler.gchecks = self.checks
 
             # Get a overview of the latencies with just
             # a 95 percentile view, but lso min/max values
@@ -1642,31 +1525,15 @@ class Scheduler:
             lat_avg, lat_min, lat_max = nighty_five_percent(latencies)
             if lat_avg is not None:
                 logger.debug("Latency (avg/min/max): %.2f/%.2f/%.2f" % (lat_avg, lat_min, lat_max))
+
             # print "Notifications:", nb_notifications
             now = time.time()
+
             if self.nb_checks_send != 0:
                 logger.debug("Nb checks/notifications/event send: %s" % self.nb_checks_send)
-                #if self.nb_checks_send_file != 0 :
-                    #b = self.nb_checks_send
-                    #self.nb_checks_send_file = self.nb_checks_send_file + b
-                #if self.nb_checks_send_socket != 0 :
-                    #b = self.nb_checks_send
-                    #self.nb_checks_send_socket = self.nb_checks_send_socket + b
-                #else :    
-                    #self.nb_checks_send_file = self.nb_checks_send
-                    #self.nb_checks_send_socket = self.nb_checks_send                   
             self.nb_checks_send = 0
             if self.nb_broks_send != 0:
                 logger.debug("Nb Broks send: %s" % self.nb_broks_send)
-                #if self.nb_broks_send_file == 0 :
-                    #b = self.nb_broks_send
-                    #self.nb_broks_send_file = self.nb_broks_send_file + b
-                #if self.nb_broks_send_socket == 0 :
-                    #b = self.nb_broks_send
-                    #self.nb_broks_send_socket = self.nb_broks_send_file + b    
-                #else :    
-                    #self.nb_broks_send_file = self.nb_broks_send
-                    #self.nb_broks_send_socket = self.nb_broks_send
             self.nb_broks_send = 0
 
             time_elapsed = now - gogogo
@@ -1680,7 +1547,6 @@ class Scheduler:
                 logger.debug('I need to dump my objects!')
                 self.dump_objects()
                 self.need_objects_dump = False
-       
 
         # WE must save the retention at the quit BY OURSELF
         # because our daemon will not be able to do it for us

@@ -26,6 +26,7 @@ DIR="$(cd $(dirname "$0"); pwd)"
 
 
 "$DIR"/stop_poller.sh
+"$DIR"/stop_poller2.sh
 "$DIR"/stop_reactionner.sh
 "$DIR"/stop_broker.sh
 "$DIR"/stop_receiver.sh
