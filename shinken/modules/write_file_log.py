@@ -80,11 +80,11 @@ class Write_file_log(BaseModule):
         if self.temp_dict_lenght == 0:
             self.temp_dict_lenght = 1
         if self.temp_dict_lenght > 1:
-            self.temp_dict_lenght=max(currentdict.keys())
+            self.temp_dict_lenght=currentdict.keys()[-1]
         # copy checks in checks_temp       
         for k,v in Scheduler.gchecks.items():
             if self.temp_dict_lenght > 1:
-                self.temp_dict_lenght=max(currentdict.keys())
+                self.temp_dict_lenght=currentdict.keys()[-1]
             self.temp_dict_lenght = self.temp_dict_lenght + 1
             currentdict.update({self.temp_dict_lenght:v})
         return True
@@ -99,15 +99,14 @@ class Write_file_log(BaseModule):
             return
         logger.debug("Updating file %s" % self.path)
         # local stats var and global reset
-        nb_scheduled = 0
-        nb_inpoller = 0
-        nb_zombies = 0
-        nb_checks_total = 0
+        self.nb_scheduled = 0
+        self.nb_inpoller = 0
+        self.nb_zombies = 0
+        self.nb_checks_total = 0
         #time
         now = time.time()
         # number of poller
         a = len(Scheduler.gpollers)
-        b = str(Scheduler.gpollers)
         x = 0
         # will get stats for each poller_tags
         try:
@@ -119,20 +118,21 @@ class Write_file_log(BaseModule):
                 # start stats count
                 for c in self.checkstemp_file1.values():
                     if c.status == 'scheduled' and c.poller_tag == p:
-                        nb_scheduled +=1
+                        self.nb_scheduled +=1
                     if c.status == 'inpoller' and c.poller_tag == p:
-                        nb_inpoller +=1
+                        self.nb_inpoller +=1
                     if c.status == 'zombie' and c.poller_tag == p:
-                        nb_zombies +=1
+                        self.nb_zombies +=1
                     if c.poller_tag == p:
-                        nb_checks_total += 1
-                logfile.write("%d %s Total check %s \n" % (now, p, nb_checks_total))        
-                logfile.write("%d %s nb_scheduled %s \n%d %s nb_inpoller %s \n%d %s nb_zombies %s \n" % (now, p, nb_scheduled, now, p, nb_inpoller, now, p, nb_zombies))
+                        self.nb_checks_total += 1
+                logfile.write("%d %s Total check %s \n" % (now, p, self.nb_checks_total))        
+                #logfile.write("%d %s nb_inpoller %s \n" % (now, p, self.nb_inpoller))
+                logfile.write("%d %s nb_scheduled %s \n%d %s nb_inpoller %s \n%d %s nb_zombies %s \n" % (now, p, self.nb_scheduled, now, p, self.nb_inpoller, now, p, self.nb_zombies))
                 #reset stats by poller
-                nb_checks_total = 0
-                nb_scheduled = 0
-                nb_inpoller = 0
-                nb_zombies = 0
+                self.nb_checks_total = 0
+                self.nb_scheduled = 0
+                self.nb_inpoller = 0
+                self.nb_zombies = 0
                 x = x+1 
         except IOError, e:
             if e.errno != 32:

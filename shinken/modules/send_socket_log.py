@@ -64,6 +64,7 @@ class Send_socket_log(BaseModule):
         """
         logger.info("Initialization of the send_socket_log module")
         self.checkstemp_file={}
+        self.is_sending = 0
         
     def hook_get_socket_log(self, daemon):
         """
@@ -78,11 +79,11 @@ class Send_socket_log(BaseModule):
         if self.temp_dict_lenght == 0:
             self.temp_dict_lenght = 1
         if self.temp_dict_lenght > 1:
-            self.temp_dict_lenght=max(currentdict.keys())
+            self.temp_dict_lenght=currentdict.keys()[-1]
         # copy checks in checks_temp       
         for k,v in Scheduler.gchecks.items():
             if self.temp_dict_lenght > 1:
-                self.temp_dict_lenght=max(currentdict.keys())
+                self.temp_dict_lenght=currentdict.keys()[-1]
             self.temp_dict_lenght = self.temp_dict_lenght + 1
             currentdict.update({self.temp_dict_lenght:v})
         return True
@@ -94,19 +95,18 @@ class Send_socket_log(BaseModule):
             rcvsocket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
             rcvsocket.connect(('127.0.0.1', 1235))
         except IOError, exp:
-            logger.error("Open file failed, %s" % str(exp))
+            logger.error("Open socket failed, %s" % str(exp))
             return
         logger.debug("Sending to socket")
         # local stats var and global reset
-        nb_scheduled = 0
-        nb_inpoller = 0
-        nb_zombies = 0
-        nb_checks_total = 0
+        self.nb_scheduled = 0
+        self.nb_inpoller = 0
+        self.nb_zombies = 0
+        self.nb_checks_total = 0
         #time
         now = time.time()
         # number of poller
         a = len(Scheduler.gpollers)
-        b = str(Scheduler.gpollers)
         x = 0
         # will get stats for each poller_tags
         try:
@@ -118,20 +118,20 @@ class Send_socket_log(BaseModule):
                 # start stats count
                 for c in self.checkstemp_file.values():
                     if c.status == 'scheduled' and c.poller_tag == p:
-                        nb_scheduled +=1
+                        self.nb_scheduled +=1
                     if c.status == 'inpoller' and c.poller_tag == p:
-                        nb_inpoller +=1
+                        self.nb_inpoller +=1
                     if c.status == 'zombie' and c.poller_tag == p:
-                        nb_zombies +=1
+                        self.nb_zombies +=1
                     if c.poller_tag == p:
-                        nb_checks_total += 1
-                rcvsocket.send("%d %s Total check %s \n" % (now, p, nb_checks_total))        
-                rcvsocket.send("%d %s nb_scheduled %s \n%d %s nb_inpoller %s \n%d %s nb_zombies %s \n" % (now, p, nb_scheduled, now, p, nb_inpoller, now, p, nb_zombies))
+                        self.nb_checks_total += 1
+                rcvsocket.send("%d %s Total check %s \n" % (now, p, self.nb_checks_total))        
+                rcvsocket.send("%d %s nb_scheduled %s \n%d %s nb_inpoller %s \n%d %s nb_zombies %s \n" % (now, p, self.nb_scheduled, now, p, self.nb_inpoller, now, p, self.nb_zombies))
                 #reset stats by poller
-                nb_checks_total = 0
-                nb_scheduled = 0
-                nb_inpoller = 0
-                nb_zombies = 0
+                self.nb_checks_total = 0
+                self.nb_scheduled = 0
+                self.nb_inpoller = 0
+                self.nb_zombies = 0
                 x = x+1 
         except IOError, e:
             if e.errno != 32:
