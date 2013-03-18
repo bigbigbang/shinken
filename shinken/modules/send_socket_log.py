@@ -28,8 +28,8 @@
 Write scheduler log in flat file
 """
 import time
-import os
 import datetime
+import socket
 
 from shinken.basemodule import BaseModule
 from shinken.log import logger
@@ -37,7 +37,7 @@ from shinken.scheduler import Scheduler
 
 properties = {
     'daemons': ['scheduler'],
-    'type': 'write_file_log',
+    'type': 'send_socket_log',
     'external': False,
     }
 
@@ -46,34 +46,32 @@ properties = {
 def get_instance(plugin):
     logger.info("Get a Simple log broker for plugin %s" % plugin.get_name())
     # Catch errors
-    path = plugin.path
-    instance = Write_file_log(plugin, path)
+    instance = Send_socket_log(plugin)
     return instance
 
 
 # Module write file log
 # 
-class Write_file_log(BaseModule):
+class Send_socket_log(BaseModule):
 
-    def __init__(self, modconf, path):
+    def __init__(self, modconf):
         BaseModule.__init__(self, modconf)
-        self.path = path
         
         
     def init(self):
         """
         Called by Scheduler to say 'let's prepare yourself guy'
         """
-        logger.info("Initialization of the write_file_log module")
-        self.checkstemp_file1={}
+        logger.info("Initialization of the send_socket_log module")
+        self.checkstemp_file={}
         
-    def hook_get_file_log(self, daemon):
+    def hook_get_socket_log(self, daemon):
         """
         main function that is called in the retention creation pass
         """
-        logger.debug("[Write_file_log] Get data ...")
+        logger.debug("[Send_socket_log] Get data ...")
         #name of local dict
-        currentdict = self.checkstemp_file1
+        currentdict = self.checkstemp_file
         # temp dict lenght
         if currentdict == {}:
             self.temp_dict_lenght = 1
@@ -90,14 +88,15 @@ class Write_file_log(BaseModule):
         return True
 
     ## Should return if it succeed in the retention load or not
-    def hook_write_file_log(self, daemon):
+    def hook_send_socket_log(self, daemon):
         try:
-            # Open the file specified in "path" (shinken-specific)
-            logfile = open(self.path, 'a')
+            # Open the connexion
+            rcvsocket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+            rcvsocket.connect(('127.0.0.1', 1235))
         except IOError, exp:
             logger.error("Open file failed, %s" % str(exp))
             return
-        logger.debug("Updating file %s" % self.path)
+        logger.debug("Sending to socket")
         # local stats var and global reset
         nb_scheduled = 0
         nb_inpoller = 0
@@ -117,7 +116,7 @@ class Write_file_log(BaseModule):
                 p=repr(p)
                 p=p[3:-2]
                 # start stats count
-                for c in self.checkstemp_file1.values():
+                for c in self.checkstemp_file.values():
                     if c.status == 'scheduled' and c.poller_tag == p:
                         nb_scheduled +=1
                     if c.status == 'inpoller' and c.poller_tag == p:
@@ -126,8 +125,8 @@ class Write_file_log(BaseModule):
                         nb_zombies +=1
                     if c.poller_tag == p:
                         nb_checks_total += 1
-                logfile.write("%d %s Total check %s \n" % (now, p, nb_checks_total))        
-                logfile.write("%d %s nb_scheduled %s \n%d %s nb_inpoller %s \n%d %s nb_zombies %s \n" % (now, p, nb_scheduled, now, p, nb_inpoller, now, p, nb_zombies))
+                rcvsocket.send("%d %s Total check %s \n" % (now, p, nb_checks_total))        
+                rcvsocket.send("%d %s nb_scheduled %s \n%d %s nb_inpoller %s \n%d %s nb_zombies %s \n" % (now, p, nb_scheduled, now, p, nb_inpoller, now, p, nb_zombies))
                 #reset stats by poller
                 nb_checks_total = 0
                 nb_scheduled = 0
@@ -137,8 +136,6 @@ class Write_file_log(BaseModule):
         except IOError, e:
             if e.errno != 32:
                 raise
-        # close file
-        logfile.close()
         # clear temp dict
-        self.checkstemp_file1.clear()
+        self.checkstemp_file.clear()
         #return True

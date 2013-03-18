@@ -106,7 +106,9 @@ class Scheduler:
             18: ('send_broks_to_modules', self.send_broks_to_modules, 1),
             19: ('get_objects_from_from_queues', self.get_objects_from_from_queues, 1),
             20: ('get_file_log', self.get_file_log, 1),
-            21: ('write_file_log',self.write_file_log,10),
+            21: ('write_file_log',self.write_file_log,20),
+            22: ('get_socket_log', self.get_socket_log, 1),
+            23: ('send_socket_log',self.send_socket_log,10),
         }
 
         # stats part
@@ -922,6 +924,13 @@ class Scheduler:
     # write log file
     def write_file_log(self):
        self.hook_point('write_file_log')
+       
+    # get log socket
+    def get_socket_log(self):
+        self.hook_point('get_socket_log')
+    # send log socket
+    def send_socket_log(self):
+       self.hook_point('send_socket_log')   
 
     # Helper function for module, will give the host and service
     # data
