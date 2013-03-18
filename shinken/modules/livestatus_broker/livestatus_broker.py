@@ -66,14 +66,10 @@ class Stats(threading.Thread):
         connexion_avec_serveur = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         connexion_avec_serveur.connect(('127.0.0.1', 1235))
         try:
-            time.sleep(2)
+            time.sleep(1)
             connexion_avec_serveur.send("nb request : %s\n" % (str(Stats.nb_request)))
-            #connexion_avec_serveur.send("nb query : %s\n" % (str(LiveStatus_broker.nb_query)))
             connexion_avec_serveur.send("nb broks : %s" % (str(Stats.nb_broks)))
-            ###t = str(LiveStatusCounters.self.counters)
-            ###connexion_avec_serveur.send("test : %s" % (t))
             Stats.nb_broks = 0
-            #LiveStatus_broker.nb_query = 0
             Stats.nb_request = 0
         except IOError, e:
             if e.errno != 32:
@@ -435,7 +431,6 @@ class LiveStatus_broker(BaseModule, Daemon):
         self.input = self.listeners[:]
         open_connections = {}
         while not self.interrupted:
-            Stats.nb_broks += 1
             if self.use_threads:
                 self.wait_for_no_writers()
                 self.livestatus.counters.calc_rate()
@@ -445,7 +440,7 @@ class LiveStatus_broker(BaseModule, Daemon):
                     for b in l:
                         # Un-serialize the brok data
                         b.prepare()
-                        
+                        Stats.nb_broks += 1
                         self.rg.manage_brok(b)
                         for mod in self.modules_manager.get_internal_instances():
                             try:
@@ -532,7 +527,6 @@ class LiveStatus_broker(BaseModule, Daemon):
                         else:
                             # This one has no timeout, so try forever
                             pass
-
             # At the end of this loop we probably will discard connections
             kick_connections = []
             if len(exceptready) > 0:
@@ -707,8 +701,6 @@ class LiveStatus_broker(BaseModule, Daemon):
                             logger.info("[Livestatus Broker] Closed socket %d" % socketid)           
         
         self.do_stop()
-        
-        
 
     def write_protocol(self, request, response):
         if self.debug_queries:
