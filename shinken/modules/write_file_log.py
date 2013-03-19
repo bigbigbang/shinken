@@ -52,7 +52,6 @@ def get_instance(plugin):
 
 
 # Module write file log
-# 
 class Write_file_log(BaseModule):
 
     def __init__(self, modconf, path):
@@ -65,7 +64,7 @@ class Write_file_log(BaseModule):
         Called by Scheduler to say 'let's prepare yourself guy'
         """
         logger.info("Initialization of the write_file_log module")
-        self.checkstemp_file1={}
+        self.checkstemp_file={}
         
     def hook_get_file_log(self, daemon):
         """
@@ -73,11 +72,9 @@ class Write_file_log(BaseModule):
         """
         logger.debug("[Write_file_log] Get data ...")
         #name of local dict
-        currentdict = self.checkstemp_file1
-        # temp dict lenght
-        if currentdict == {}:
-            self.temp_dict_lenght = 1
-        if self.temp_dict_lenght == 0:
+        currentdict = self.checkstemp_file
+        #temp dict lenght
+        if currentdict == {} or self.temp_dict_lenght == 0 :
             self.temp_dict_lenght = 1
         if self.temp_dict_lenght > 1:
             self.temp_dict_lenght=currentdict.keys()[-1]
@@ -116,17 +113,16 @@ class Write_file_log(BaseModule):
                 p=repr(p)
                 p=p[3:-2]
                 # start stats count
-                for c in self.checkstemp_file1.values():
-                    if c.status == 'scheduled' and c.poller_tag == p:
-                        self.nb_scheduled +=1
-                    if c.status == 'inpoller' and c.poller_tag == p:
-                        self.nb_inpoller +=1
-                    if c.status == 'zombie' and c.poller_tag == p:
-                        self.nb_zombies +=1
+                for c in self.checkstemp_file.values():
                     if c.poller_tag == p:
+                        if c.status == 'scheduled':
+                            self.nb_scheduled +=1
+                        if c.status == 'inpoller':
+                            self.nb_inpoller +=1
+                        if c.status == 'zombie':
+                            self.nb_zombies +=1
                         self.nb_checks_total += 1
-                logfile.write("%d %s Total check %s \n" % (now, p, self.nb_checks_total))        
-                #logfile.write("%d %s nb_inpoller %s \n" % (now, p, self.nb_inpoller))
+                logfile.write("%d %s Total check %s \n" % (now, p, self.nb_checks_total))
                 logfile.write("%d %s nb_scheduled %s \n%d %s nb_inpoller %s \n%d %s nb_zombies %s \n" % (now, p, self.nb_scheduled, now, p, self.nb_inpoller, now, p, self.nb_zombies))
                 #reset stats by poller
                 self.nb_checks_total = 0
@@ -140,5 +136,5 @@ class Write_file_log(BaseModule):
         # close file
         logfile.close()
         # clear temp dict
-        self.checkstemp_file1.clear()
+        self.checkstemp_file.clear()
         #return True

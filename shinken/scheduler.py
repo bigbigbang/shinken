@@ -105,10 +105,12 @@ class Scheduler:
             17: ('check_for_expire_acknowledge', self.check_for_expire_acknowledge, 1),
             18: ('send_broks_to_modules', self.send_broks_to_modules, 1),
             19: ('get_objects_from_from_queues', self.get_objects_from_from_queues, 1),
+            #For module like Write_file_log or Send_socket_log uncomment the next lines :
+            # you can also change the timing .
             20: ('get_file_log', self.get_file_log, 1),
-            21: ('write_file_log',self.write_file_log,20),
+            21: ('write_file_log',self.write_file_log,10),
             22: ('get_socket_log', self.get_socket_log, 1),
-            23: ('send_socket_log',self.send_socket_log,10),
+            23: ('send_socket_log',self.send_socket_log,5),
         }
 
         # stats part

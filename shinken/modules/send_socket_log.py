@@ -64,7 +64,6 @@ class Send_socket_log(BaseModule):
         """
         logger.info("Initialization of the send_socket_log module")
         self.checkstemp_file={}
-        self.is_sending = 0
         
     def hook_get_socket_log(self, daemon):
         """
@@ -74,13 +73,11 @@ class Send_socket_log(BaseModule):
         #name of local dict
         currentdict = self.checkstemp_file
         # temp dict lenght
-        if currentdict == {}:
-            self.temp_dict_lenght = 1
-        if self.temp_dict_lenght == 0:
+        if currentdict == {} or self.temp_dict_lenght == 0 :
             self.temp_dict_lenght = 1
         if self.temp_dict_lenght > 1:
             self.temp_dict_lenght=currentdict.keys()[-1]
-        # copy checks in checks_temp       
+        # copy checks in checks_temp_file       
         for k,v in Scheduler.gchecks.items():
             if self.temp_dict_lenght > 1:
                 self.temp_dict_lenght=currentdict.keys()[-1]
@@ -117,13 +114,13 @@ class Send_socket_log(BaseModule):
                 p=p[3:-2]
                 # start stats count
                 for c in self.checkstemp_file.values():
-                    if c.status == 'scheduled' and c.poller_tag == p:
-                        self.nb_scheduled +=1
-                    if c.status == 'inpoller' and c.poller_tag == p:
-                        self.nb_inpoller +=1
-                    if c.status == 'zombie' and c.poller_tag == p:
-                        self.nb_zombies +=1
                     if c.poller_tag == p:
+                        if c.status == 'scheduled':
+                            self.nb_scheduled +=1
+                        if c.status == 'inpoller':
+                            self.nb_inpoller +=1
+                        if c.status == 'zombie':
+                            self.nb_zombies +=1
                         self.nb_checks_total += 1
                 rcvsocket.send("%d %s Total check %s \n" % (now, p, self.nb_checks_total))        
                 rcvsocket.send("%d %s nb_scheduled %s \n%d %s nb_inpoller %s \n%d %s nb_zombies %s \n" % (now, p, self.nb_scheduled, now, p, self.nb_inpoller, now, p, self.nb_zombies))
