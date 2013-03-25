@@ -48,6 +48,7 @@ from shinken.modulesmanager import ModulesManager
 from shinken.objects.module import Module
 from shinken.daemon import Daemon
 from shinken.misc.datamanager import datamgr
+
 # Local import
 from livestatus import LiveStatus
 from livestatus_regenerator import LiveStatusRegenerator
@@ -63,20 +64,34 @@ class Stats(threading.Thread):
     nb_broks = 0
     def run(self):
         #init socket
-        connexion_avec_serveur = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-        connexion_avec_serveur.connect(('127.0.0.1', 1235))
         try:
-            time.sleep(1)
-            connexion_avec_serveur.send("nb request : %s\n" % (str(Stats.nb_request)))
-            connexion_avec_serveur.send("nb broks : %s" % (str(Stats.nb_broks)))
-            Stats.nb_broks = 0
-            Stats.nb_request = 0
-        except IOError, e:
-            if e.errno != 32:
-                #logfile.write("##argh## \n")
-                raise
+            host = '127.0.0.1'
+            textport = 1234
+            # Open the socket
+            rcvsocket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        except socket.error, e:
+            logger.info("Strange error creating socket: %s" % e)
+        try:
+            port = int(textport)
+        except ValueError:
+            logger.debug("Couldn't find your port: %s" % e)
+        try:
+            rcvsocket.connect((host, port))
+        except socket.gaierror, e:
+            logger.info("Address-related error connecting to server (will retry in 3sec): %s" % e)
+            time.sleep(3)
+            try:
+                 rcvsocket.connect((host, port))
+            except socket.gaierror, e:
+                logger.info("Address-related error connecting to server (not working !): %s" % e)
+        time.sleep(5)
+        now = time.time()
+        rcvsocket.send("%d shinken.broker.livestatus.nb_request %s \n%d shinken.broker.livestatus.nb_broks %s" % (now, str(Stats.nb_request), now, str(Stats.nb_broks)))
+        Stats.nb_broks = 0
+        Stats.nb_request = 0
         a = Stats()
         a.start()
+            
 
 # Class for the LiveStatus Broker
 # Get broks and listen to livestatus query language requests
@@ -471,7 +486,6 @@ class LiveStatus_broker(BaseModule, Daemon):
             inputready, _, exceptready = select.select(self.input, [], [], 0)
             now = time.time()
             if True:
-                Stats.nb_request += 1
                 # It's True, this is a horrible implementation
                 # It doesn't use triggers yet, so it may be very slow.
                 for socketid in open_connections:
@@ -483,6 +497,8 @@ class LiveStatus_broker(BaseModule, Daemon):
                             if now - wait.wait_start > wait.wait_timeout:
                                 # Launch the request and respond
                                 result = query.launch_query()
+                                Stats.nb_request += 1
+                                logger.debug("stats = %s" % Stats.nb_request)
                                 response = query.response
                                 response.format_live_data(result, query.columns, query.aliases)
                                 output, keepalive = response.respond()
@@ -640,6 +656,8 @@ class LiveStatus_broker(BaseModule, Daemon):
                         if handle_it:
                             open_connections[socketid]['buffer'] = open_connections[socketid]['buffer'].rstrip()
                             response, keepalive = self.livestatus.handle_request(open_connections[socketid]['buffer'])
+                            Stats.nb_request += 1
+                            logger.debug("AAAD")
                             if isinstance(response, str):
                                 try:
                                     s.send(response)
@@ -706,3 +724,4 @@ class LiveStatus_broker(BaseModule, Daemon):
         if self.debug_queries:
             print "REQUEST>>>>>\n" + request + "\n\n"
             #print "RESPONSE<<<<\n" + response + "\n\n"
+
