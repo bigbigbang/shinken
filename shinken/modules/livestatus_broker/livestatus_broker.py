@@ -63,35 +63,32 @@ class Stats(threading.Thread):
     nb_request = 0
     nb_broks = 0
     def run(self):
-        #init socket
-        try:
-            host = '127.0.0.1'
-            textport = 1234
-            # Open the socket
-            rcvsocket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-        except socket.error, e:
-            logger.info("Strange error creating socket: %s" % e)
-        try:
-            port = int(textport)
-        except ValueError:
-            logger.debug("Couldn't find your port: %s" % e)
-        try:
-            rcvsocket.connect((host, port))
-        except socket.gaierror, e:
-            logger.info("Address-related error connecting to server (will retry in 3sec): %s" % e)
-            time.sleep(3)
+        while True:
             try:
-                 rcvsocket.connect((host, port))
+                host = '127.0.0.1'
+                textport = 1234
+                # Open the socket
+                rcvsocket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+            except socket.error, e:
+                logger.warning("Strange error creating socket: %s" % e)
+            try:
+                port = int(textport)
+            except ValueError:
+                logger.warning("Couldn't find your port: %s" % e)
+            try:
+                rcvsocket.connect((host, port))
             except socket.gaierror, e:
-                logger.info("Address-related error connecting to server (not working !): %s" % e)
-        time.sleep(5)
-        now = time.time()
-        rcvsocket.send("%d shinken.broker.livestatus.nb_request %s \n%d shinken.broker.livestatus.nb_broks %s" % (now, str(Stats.nb_request), now, str(Stats.nb_broks)))
-        Stats.nb_broks = 0
-        Stats.nb_request = 0
-        a = Stats()
-        a.start()
-            
+                logger.warning("Address-related error connecting to server (will retry in 3sec): %s" % e)
+                time.sleep(3)
+                try:
+                    rcvsocket.connect((host, port))
+                except socket.gaierror, e:
+                    logger.warning("Address-related error connecting to server (not working !): %s" % e)
+            time.sleep(5)
+            now = time.time()
+            rcvsocket.send("%d shinken.broker.livestatus.nb_request %s \n%d shinken.broker.livestatus.nb_broks %s" % (now, str(Stats.nb_request), now, str(Stats.nb_broks)))
+            Stats.nb_broks = 0
+            Stats.nb_request = 0
 
 # Class for the LiveStatus Broker
 # Get broks and listen to livestatus query language requests
